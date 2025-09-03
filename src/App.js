@@ -4,7 +4,6 @@ import TeacherUpdateForm from './pages/TeacherUpdateForm';
 import HomePage from './pages/HomePage';
 import Gradebook from './pages/Gradebook';
 import TeacherDashboard from './pages/TeacherDashboard';
-import StudentDashboard from './pages/StudentDashboard';
 import AuthWrapper from './components/AuthWrapper';
 
 function App() {
@@ -14,9 +13,8 @@ function App() {
         <Routes>
           <Route path="/level/:levelCode" element={<LevelPage />} />
           <Route path="/level/:levelCode/update" element={<TeacherDashboard />} />
-          {/* <Route path="/level/:levelCode/grade" element={<Gradebook />} /> */}
-          <Route path="/student" element={<StudentDashboard />} />
-          {/* <Route path="/teacher/:levelCode" element={<TeacherDashboard />} /> */}
+          <Route path="/level/:levelCode/grade" element={<Gradebook />} />
+          <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/" element={<HomePage />} />
         </Routes>
       </AuthWrapper>

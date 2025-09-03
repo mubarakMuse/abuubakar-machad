@@ -1,82 +1,130 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export default function StudentGrades({ studentId, levelId }) {
+export default function StudentGrades({ studentId, levelCode }) {
   const [grades, setGrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [average, setAverage] = useState(null);
+  const [error, setError] = useState(null);
+
+  const calculateLetter = (pct) => {
+    if (pct >= 90) return 'A';
+    if (pct >= 80) return 'B';
+    if (pct >= 70) return 'C';
+    if (pct >= 60) return 'D';
+    return 'F';
+  };
 
   useEffect(() => {
     const fetchGrades = async () => {
-      setLoading(true);
-      
-      const { data } = await supabase
-        .from('grades')
-        .select('score, assignment:assignments(title, max_score, category:grade_categories(name, weight))')
-        .eq('student_id', studentId)
-        .eq('assignment.level_id', levelId);
-      
-      if (data) {
-        setGrades(data);
+      try {
+        setLoading(true);
+        setError(null);
         
-        // Calculate average
-        if (data.length > 0) {
-          const total = data.reduce((sum, grade) => sum + (grade.score / grade.assignment.max_score), 0);
-          setAverage((total / data.length * 100).toFixed(1));
-        }
-      }
-      
-      setLoading(false);
-    };
-    
-    fetchGrades();
-  }, [studentId, levelId]);
+        const { data, error } = await supabase
+          .from('grades')
+          .select('id, score, feedback, graded_at, assignment:assignments(title, max_score, level_code, category:grade_categories(name))')
+          .eq('student_id', studentId)
+          .eq('assignment.level_code', levelCode)
+          .order('graded_at', { ascending: false });
+        
+        if (error) throw error;
 
-  if (loading) return <div>Loading grades...</div>;
+        setGrades(data || []);
+
+        if (data && data.length > 0) {
+          const totalPct = data.reduce((sum, g) => {
+            const pct = g.assignment?.max_score > 0 ? (g.score / g.assignment.max_score) * 100 : 0;
+            return sum + pct;
+          }, 0);
+          setAverage((totalPct / data.length).toFixed(1));
+        } else {
+          setAverage(null);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (studentId && levelCode) {
+      fetchGrades();
+    }
+  }, [studentId, levelCode]);
+
+  if (loading) return (
+    <div className="flex justify-center items-center p-6">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+      <p className="text-red-700">{error}</p>
+    </div>
+  );
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium leading-6 text-gray-900">Grades</h3>
-        {average && (
-          <p className="mt-1 text-sm text-gray-600">
-            Current Average: <span className="font-bold">{average}%</span>
-          </p>
-        )}
-      </div>
-      
-      <div className="divide-y divide-gray-200">
-        {grades.length === 0 ? (
-          <div className="px-6 py-4 text-center text-gray-500">
-            No grades recorded yet
-          </div>
-        ) : (
-          grades.map(grade => (
-            <div key={grade.assignment.title} className="px-6 py-4">
-              <div className="flex justify-between">
-                <div>
-                  <h4 className="font-medium">{grade.assignment.title}</h4>
-                  {grade.assignment.category && (
-                    <span className="text-xs text-gray-500">
-                      {grade.assignment.category.name} ({grade.assignment.category.weight * 100}%)
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="font-medium">
-                    {grade.score}/{grade.assignment.max_score}
-                  </span>
-                  <span className={`block text-sm ${
-                    (grade.score / grade.assignment.max_score * 100) >= 70 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {((grade.score / grade.assignment.max_score) * 100).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-2xl font-bold text-gray-900">Your Grades for {levelCode}</h3>
+        {average !== null && (
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-600">Average</div>
+            <div className="px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800">
+              {average}% ({calculateLetter(parseFloat(average))})
             </div>
-          ))
+          </div>
         )}
       </div>
+
+      {grades.length === 0 ? (
+        <div className="bg-white rounded-xl p-6 shadow-md border border-indigo-100">
+          <p className="text-gray-600">No grades available yet for this class.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Assignment</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Type</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Score</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Percentage</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Letter</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {grades.map(g => {
+                const pct = g.assignment?.max_score > 0 ? Math.round((g.score / g.assignment.max_score) * 10000) / 100 : 0;
+                const letter = calculateLetter(pct);
+                return (
+                  <tr key={g.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-gray-900">{g.assignment?.title}</td>
+                    <td className="px-6 py-4 text-gray-900">{g.assignment?.category?.name || '-'}</td>
+                    <td className="px-6 py-4 text-gray-900">{g.score} / {g.assignment?.max_score}</td>
+                    <td className="px-6 py-4 text-gray-900">{pct}%</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                        letter === 'A' ? 'bg-green-100 text-green-800' :
+                        letter === 'B' ? 'bg-blue-100 text-blue-800' :
+                        letter === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                        letter === 'D' ? 'bg-orange-100 text-orange-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {letter}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-900">{new Date(g.graded_at).toLocaleDateString()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

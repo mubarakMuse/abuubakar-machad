@@ -3,19 +3,36 @@ import { supabase } from '../lib/supabase';
 
 export default function AttendanceTab({ levelCode }) {
   const [attendance, setAttendance] = useState([]);
+  const [previousAttendance, setPreviousAttendance] = useState([]);
   const [showAttendanceForm, setShowAttendanceForm] = useState(false);
   const [showBulkAttendanceModal, setShowBulkAttendanceModal] = useState(false);
+  const [showPreviousAttendance, setShowPreviousAttendance] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [bulkAttendance, setBulkAttendance] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [editingAttendance, setEditingAttendance] = useState(null);
+  const [dateRange, setDateRange] = useState({
+    startDate: getLocalDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
+    endDate: getLocalDateString()
+  });
+
+  // Helper function to get local date string
+  function getLocalDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   useEffect(() => {
     fetchAttendance();
     fetchEnrolledStudents();
-  }, [levelCode, selectedDate]);
+    if (showPreviousAttendance) {
+      fetchPreviousAttendance();
+    }
+  }, [levelCode, selectedDate, showPreviousAttendance, dateRange]);
 
   const fetchAttendance = async () => {
     try {
@@ -35,6 +52,31 @@ export default function AttendanceTab({ levelCode }) {
 
       if (error) throw error;
       setAttendance(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const fetchPreviousAttendance = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select(`
+          *,
+          student:student_id (
+            id,
+            name,
+            username
+          )
+        `)
+        .eq('level_code', levelCode)
+        .gte('date', dateRange.startDate)
+        .lte('date', dateRange.endDate)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPreviousAttendance(data);
     } catch (err) {
       setError(err.message);
     }
@@ -142,6 +184,29 @@ export default function AttendanceTab({ levelCode }) {
     }
   };
 
+  const formatDate = (dateString) => {
+    // Create date in local timezone to avoid UTC issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const groupAttendanceByDate = (attendanceData) => {
+    return attendanceData.reduce((groups, record) => {
+      const date = record.date;
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(record);
+      return groups;
+    }, {});
+  };
+
   const renderAttendanceCard = (record) => (
     <div key={record.id} className="bg-white rounded-2xl shadow-lg p-6 border border-indigo-100">
       <div className="flex justify-between items-center">
@@ -193,6 +258,93 @@ export default function AttendanceTab({ levelCode }) {
       </div>
     </div>
   );
+
+  const renderPreviousAttendance = () => {
+    const groupedAttendance = groupAttendanceByDate(previousAttendance);
+    const sortedDates = Object.keys(groupedAttendance).sort((a, b) => new Date(b) - new Date(a));
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold text-gray-900">Previous Attendance Records</h3>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">From:</label>
+              <input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
+                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">To:</label>
+              <input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
+                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {sortedDates.length === 0 ? (
+          <div className="text-center py-8">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No attendance records</h3>
+            <p className="mt-1 text-sm text-gray-500">No attendance has been recorded for the selected date range.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {sortedDates.map((date) => (
+              <div key={date} className="bg-gray-50 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">{formatDate(date)}</h4>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-600">
+                      {groupedAttendance[date].length} students
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-green-600">
+                        {groupedAttendance[date].filter(r => r.status === 'present').length} Present
+                      </span>
+                      <span className="text-xs text-red-600">
+                        {groupedAttendance[date].filter(r => r.status === 'absent').length} Absent
+                      </span>
+                      <span className="text-xs text-yellow-600">
+                        {groupedAttendance[date].filter(r => r.status === 'late').length} Late
+                      </span>
+                      <span className="text-xs text-blue-600">
+                        {groupedAttendance[date].filter(r => r.status === 'excused').length} Excused
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  {groupedAttendance[date].map((record) => (
+                    <div key={record.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h5 className="font-medium text-gray-900">{record.student.name}</h5>
+                          <p className="text-sm text-gray-500">@{record.student.username}</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(record.status)}`}>
+                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderBulkAttendanceModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -292,6 +444,16 @@ export default function AttendanceTab({ levelCode }) {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
+            onClick={() => setShowPreviousAttendance(!showPreviousAttendance)}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ease-in-out ${
+              showPreviousAttendance 
+                ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+            }`}
+          >
+            {showPreviousAttendance ? 'Hide Previous' : 'Show Previous'}
+          </button>
+          <button
             onClick={() => {
               setShowBulkAttendanceModal(true);
               fetchEnrolledStudents();
@@ -314,9 +476,24 @@ export default function AttendanceTab({ levelCode }) {
         </div>
       )}
 
-      <div className="space-y-4">
-        {attendance.map(renderAttendanceCard)}
-      </div>
+      {showPreviousAttendance ? (
+        renderPreviousAttendance()
+      ) : (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Today's Attendance - {formatDate(selectedDate)}</h3>
+          {attendance.length === 0 ? (
+            <div className="text-center py-8">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No attendance recorded</h3>
+              <p className="mt-1 text-sm text-gray-500">No attendance has been recorded for {formatDate(selectedDate)}.</p>
+            </div>
+          ) : (
+            attendance.map(renderAttendanceCard)
+          )}
+        </div>
+      )}
 
       {showBulkAttendanceModal && renderBulkAttendanceModal()}
     </div>

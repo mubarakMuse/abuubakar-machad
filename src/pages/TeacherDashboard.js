@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AnnouncementsTab from '../components/AnnouncementsTab';
 import GradesTab from '../components/GradesTab';
@@ -13,9 +13,18 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [classData, setClassData] = useState(null);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [editingStudent, setEditingStudent] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalAssignments: 0,
+    pendingGrades: 0,
+    attendanceRate: 0,
+    recentActivity: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
     const checkTeacherAccess = async () => {
@@ -37,7 +46,7 @@ export default function TeacherDashboard() {
           return;
         }
 
-        // Check if teacher is assigned to this level
+        // Check if teacher is assigned to this level and get class data
         const { data: teacherLevel, error: teacherLevelError } = await supabase
           .from('levels')
           .select('*')
@@ -51,6 +60,8 @@ export default function TeacherDashboard() {
           return;
         }
 
+        setClassData(teacherLevel);
+        await fetchDashboardData();
         setLoading(false);
       } catch (err) {
         setError(err.message);
@@ -66,6 +77,64 @@ export default function TeacherDashboard() {
       fetchEnrolledStudents();
     }
   }, [activeTab, levelCode]);
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch students
+      const { data: studentsData } = await supabase
+        .from('student_enrollment')
+        .select('student_id')
+        .eq('level_code', levelCode);
+
+      // Fetch assignments
+      const { data: assignmentsData } = await supabase
+        .from('assignments')
+        .select('*')
+        .eq('level_code', levelCode);
+
+      // Fetch grades
+      const { data: gradesData } = await supabase
+        .from('grades')
+        .select('*')
+        .in('assignment_id', assignmentsData?.map(a => a.id) || []);
+
+      // Fetch attendance
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('level_code', levelCode)
+        .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+      // Calculate stats
+      const totalStudents = studentsData?.length || 0;
+      const totalAssignments = assignmentsData?.length || 0;
+      const pendingGrades = assignmentsData?.filter(a => 
+        !gradesData?.some(g => g.assignment_id === a.id)
+      ).length || 0;
+      
+      const attendanceRate = attendanceData?.length > 0 
+        ? (attendanceData.filter(a => a.status === 'present').length / attendanceData.length) * 100
+        : 0;
+
+      setStats({
+        totalStudents,
+        totalAssignments,
+        pendingGrades,
+        attendanceRate: Math.round(attendanceRate),
+        recentActivity: 0
+      });
+
+      // Fetch recent activity (simplified for now)
+      setRecentActivity([
+        { type: 'assignment', message: 'New assignment posted', time: '2 hours ago' },
+        { type: 'grade', message: 'Grades updated for Quiz 1', time: '1 day ago' },
+        { type: 'attendance', message: 'Attendance marked for today', time: '2 days ago' }
+      ]);
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    }
+  };
 
   const fetchEnrolledStudents = async () => {
     try {
@@ -113,10 +182,13 @@ export default function TeacherDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-600"></div>
-          <p className="text-indigo-600 font-medium">Loading dashboard...</p>
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-neutral-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6 animate-fade-in">
+          <div className="w-16 h-16 loading-spinner"></div>
+          <div className="text-center">
+            <p className="text-primary-600 font-semibold text-lg">Loading Dashboard...</p>
+            <p className="text-neutral-500 text-sm mt-1">Preparing your teaching tools</p>
+          </div>
         </div>
       </div>
     );
@@ -124,20 +196,18 @@ export default function TeacherDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full border-l-4 border-red-500">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-              <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Access Denied</h2>
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-neutral-50 flex items-center justify-center container-mobile">
+        <div className="card p-8 max-w-md w-full text-center animate-slide-up">
+          <div className="w-16 h-16 bg-error-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-error-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <h2 className="text-xl font-bold text-neutral-900 mb-2">Access Denied</h2>
+          <p className="text-neutral-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/')}
-            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="btn-primary"
           >
             Return to Home
           </button>
@@ -148,148 +218,191 @@ export default function TeacherDashboard() {
 
   const renderStudentsTab = () => (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-          Enrolled Students
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-neutral-900">Student Management</h2>
+          <p className="text-neutral-600 mt-1">Manage enrolled students and their information</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-neutral-500">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          {enrolledStudents.length} student{enrolledStudents.length !== 1 ? 's' : ''}
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4">
-          <p className="text-red-700">{error}</p>
+        <div className="bg-error-50 border border-error-200 rounded-2xl p-4">
+          <p className="text-error-700">{error}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {enrolledStudents.map((student) => (
-              <tr key={student.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {editingStudent === student.id ? (
-                    <input
-                      type="text"
-                      defaultValue={student.name}
-                      className="w-full border rounded px-2 py-1"
-                      onBlur={(e) => handleStudentUpdate(student.id, { ...student, name: e.target.value })}
-                    />
-                  ) : (
-                    student.name
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {editingStudent === student.id ? (
-                    <input
-                      type="text"
-                      defaultValue={student.username}
-                      className="w-full border rounded px-2 py-1"
-                      onBlur={(e) => handleStudentUpdate(student.id, { ...student, username: e.target.value })}
-                    />
-                  ) : (
-                    student.username
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {editingStudent === student.id ? (
-                    <input
-                      type="email"
-                      defaultValue={student.email}
-                      className="w-full border rounded px-2 py-1"
-                      onBlur={(e) => handleStudentUpdate(student.id, { ...student, email: e.target.value })}
-                    />
-                  ) : (
-                    student.email
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {editingStudent === student.id ? (
-                    <select
-                      defaultValue={student.role}
-                      className="w-full border rounded px-2 py-1"
-                      onChange={(e) => handleStudentUpdate(student.id, { ...student, role: e.target.value })}
-                    >
-                      <option value="student">Student</option>
-                      <option value="instructor">Instructor</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  ) : (
-                    student.role
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {editingStudent === student.id ? (
-                    <input
-                      type="text"
-                      defaultValue={student.code}
-                      className="w-full border rounded px-2 py-1"
-                      onBlur={(e) => handleStudentUpdate(student.id, { ...student, code: e.target.value })}
-                    />
-                  ) : (
-                    student.code
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(student.created_at).toLocaleString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <button
-                    onClick={() => setEditingStudent(editingStudent === student.id ? null : student.id)}
-                    className="text-indigo-600 hover:text-indigo-900"
-                    disabled={isSubmitting}
-                  >
-                    {editingStudent === student.id ? 'Save' : 'Edit'}
-                  </button>
-                </td>
+      <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-neutral-200">
+            <thead className="bg-neutral-50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Code</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Joined</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-neutral-200">
+              {enrolledStudents.map((student) => (
+                <tr key={student.id} className="hover:bg-neutral-50 transition-colors duration-200">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
+                        <span className="text-white font-semibold text-sm">
+                          {student.name?.charAt(0)?.toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-neutral-900">
+                          {editingStudent === student.id ? (
+                            <input
+                              type="text"
+                              defaultValue={student.name}
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                              onBlur={(e) => handleStudentUpdate(student.id, { ...student, name: e.target.value })}
+                            />
+                          ) : (
+                            student.name
+                          )}
+                        </div>
+                        <div className="text-sm text-neutral-500">
+                          {editingStudent === student.id ? (
+                            <input
+                              type="text"
+                              defaultValue={student.username}
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                              onBlur={(e) => handleStudentUpdate(student.id, { ...student, username: e.target.value })}
+                            />
+                          ) : (
+                            student.username
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-neutral-500">
+                      {editingStudent === student.id ? (
+                        <input
+                          type="email"
+                          defaultValue={student.email}
+                          className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                          onBlur={(e) => handleStudentUpdate(student.id, { ...student, email: e.target.value })}
+                        />
+                      ) : (
+                        student.email
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-neutral-500">
+                      {editingStudent === student.id ? (
+                        <input
+                          type="text"
+                          defaultValue={student.code}
+                          className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                          onBlur={(e) => handleStudentUpdate(student.id, { ...student, code: e.target.value })}
+                        />
+                      ) : (
+                        <span className="bg-neutral-100 text-neutral-700 px-2 py-1 rounded-lg text-xs font-medium">
+                          {student.code}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                    {new Date(student.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                    <button
+                      onClick={() => setEditingStudent(editingStudent === student.id ? null : student.id)}
+                      className="text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+                      disabled={isSubmitting}
+                    >
+                      {editingStudent === student.id ? 'Save' : 'Edit'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 
+  const tabs = [
+    { id: 'announcements', label: 'Updates', icon: '📢' },
+    { id: 'assignments', label: 'Assignments', icon: '📝' },
+    { id: 'grades', label: 'Grades', icon: '📊' },
+    { id: 'attendance', label: 'Attendance', icon: '📅' },
+    { id: 'students', label: 'Students', icon: '👥' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm">
-          <nav className="flex space-x-8 px-6">
-            {['announcements', 'assignments', 'grades', 'attendance', 'students'].map((tab) => (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-neutral-50">
+      {/* Modern Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-neutral-200 sticky top-0 z-30">
+        <div className="container-mobile py-6">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => navigate(`/level/${levelCode}`)}
+              className="p-2 hover:bg-neutral-100 rounded-xl transition-colors duration-200"
+            >
+              <svg className="w-6 h-6 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center">
+              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gradient">
+                {classData?.name || `Level ${levelCode}`}
+              </h1>
+              <p className="text-neutral-600 mt-1">Teacher Dashboard • {classData?.period || 'Period'}</p>
+            </div>
+          </div>
+
+          {/* Modern Tab Navigation */}
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`${
-                  activeTab === tab
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors duration-200`}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  activeTab === tab.id
+                    ? 'bg-primary-600 text-white shadow-lg'
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+                }`}
               >
-                {tab}
+                <span className="text-base">{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
-          </nav>
+          </div>
         </div>
+      </header>
 
-        {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+      {/* Main Content */}
+      <main className="container-mobile py-6">
+        <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8">
           {activeTab === 'announcements' && <AnnouncementsTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'assignments' && <AssignmentsTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'grades' && <GradesTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'attendance' && <AttendanceTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'students' && renderStudentsTab()}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

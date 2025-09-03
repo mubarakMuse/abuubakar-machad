@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import BottomNav from './ui/BottomNav';
 
 export default function AuthWrapper({ children }) {
   const [userData, setUserData] = useState(null);
@@ -15,8 +16,8 @@ export default function AuthWrapper({ children }) {
       const authData = sessionStorage.getItem('user_auth');
       if (authData) {
         const { timestamp, user } = JSON.parse(authData);
-        // Check if 20 minutes have passed
-        if (Date.now() - timestamp < 20 * 60 * 1000) {
+        // Check if 1 hour have passed
+        if (Date.now() - timestamp < 60 * 60 * 1000) {
           // Still valid, set user data
           setUserData(user);
           setLoading(false);
@@ -42,7 +43,7 @@ export default function AuthWrapper({ children }) {
       const authData = sessionStorage.getItem('user_auth');
       if (authData) {
         const { timestamp } = JSON.parse(authData);
-        const timeRemaining = 20 * 60 * 1000 - (Date.now() - timestamp);
+        const timeRemaining = 60 * 60 * 1000 - (Date.now() - timestamp);
         if (timeRemaining > 0) {
           const minutes = Math.floor(timeRemaining / 60000);
           const seconds = Math.floor((timeRemaining % 60000) / 1000);
@@ -96,29 +97,43 @@ export default function AuthWrapper({ children }) {
     setShowPasswordModal(true);
   };
 
-  // Password Modal Component
+  // Modern Password Modal Component
   const PasswordModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Enter Your Code</h2>
-          <p className="text-gray-600 mt-2">Please enter your access code to continue</p>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 safe-top safe-bottom">
+      <div className="bg-white rounded-3xl shadow-large w-full max-w-md p-8 animate-scale-in">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-neutral-900 mb-2">Welcome Back</h2>
+          <p className="text-neutral-600">Enter your access code to continue</p>
         </div>
 
         {passwordError && (
-          <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded">
-            <p className="text-red-700">{passwordError}</p>
+          <div className="mb-6 p-4 bg-error-50 border border-error-200 rounded-xl animate-slide-down">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-error-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-error-700 text-sm font-medium">{passwordError}</p>
+            </div>
           </div>
         )}
 
-        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+        <form onSubmit={handlePasswordSubmit} className="space-y-6">
           <div>
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+              Access Code
+            </label>
             <input
+              id="password"
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Enter your access code"
+              className="input text-center text-lg tracking-wider"
+              placeholder="Enter your code"
               required
               autoFocus
             />
@@ -126,9 +141,9 @@ export default function AuthWrapper({ children }) {
 
           <button
             type="submit"
-            className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="btn-primary w-full py-3 text-base font-semibold"
           >
-            Login
+            Sign In
           </button>
         </form>
       </div>
@@ -137,10 +152,13 @@ export default function AuthWrapper({ children }) {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-600"></div>
-          <p className="text-indigo-600 font-medium">Loading...</p>
+      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-neutral-50">
+        <div className="flex flex-col items-center gap-6 animate-fade-in">
+          <div className="w-16 h-16 loading-spinner"></div>
+          <div className="text-center">
+            <p className="text-primary-600 font-semibold text-lg">Loading...</p>
+            <p className="text-neutral-500 text-sm mt-1">Please wait while we set things up</p>
+          </div>
         </div>
       </div>
     );
@@ -151,52 +169,51 @@ export default function AuthWrapper({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header with user info and logout button */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-neutral-50">
+      {/* Modern Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-neutral-200 sticky top-0 z-40 safe-top">
+        <div className="container-mobile py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                <span className="text-indigo-600 font-medium">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
                   {userData?.name?.charAt(0)}
                 </span>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">{userData?.name}</p>
-                <p className="text-sm text-gray-500">@{userData?.username}</p>
+              <div className="hidden sm:block">
+                <p className="font-semibold text-neutral-900">{userData?.name}</p>
+                <p className="text-sm text-neutral-500">@{userData?.username}</p>
               </div>
-              {userData?.role === 'student' && (
-                <button
-                  onClick={() => window.location.href = '/student'}
-                  className="ml-2 px-2 py-1 text-xs border border-green-600 text-green-700 rounded hover:bg-green-50 transition"
-                  title="Go to your dashboard"
-                >
-                  Dashboard
-                </button>
-              )}
             </div>
-            <div className="flex items-center space-x-4">
+            
+            <div className="flex items-center space-x-3">
               {timeLeft && (
-                <div className="text-sm text-gray-500">
-                  Session expires in: <span className="font-medium text-indigo-600">{timeLeft}</span>
+                <div className="hidden md:flex items-center text-sm text-neutral-500">
+                  <div className="w-2 h-2 bg-warning-500 rounded-full mr-2 animate-pulse"></div>
+                  <span className="font-medium text-warning-600">{timeLeft}</span>
                 </div>
               )}
+              
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="btn-ghost text-sm px-3 py-2"
               >
-                Logout
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="">
+      {/* Main content with mobile padding */}
+      <main className="safe-bottom pb-20">
         {children}
       </main>
+
+      {/* Mobile Bottom Navigation */}
     </div>
   );
-} 
+}
