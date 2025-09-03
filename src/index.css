@@ -6,10 +6,15 @@
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    /* Better mobile viewport handling */
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
   
   body {
     @apply bg-neutral-50 text-neutral-900 antialiased;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
   }
   
   * {
@@ -18,9 +23,12 @@
 }
 
 @layer components {
-  /* Button Components */
+  /* Mobile-optimized Button Components */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed;
+    /* Better touch targets for mobile */
+    min-height: 36px;
+    min-width: 44px;
   }
   
   .btn-primary {
@@ -47,27 +55,30 @@
     @apply btn text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 focus:ring-primary-500;
   }
   
-  /* Card Components */
+  /* Mobile-optimized Card Components */
   .card {
-    @apply bg-white rounded-2xl shadow-soft border border-neutral-200 overflow-hidden;
+    @apply bg-white rounded-xl shadow-soft border border-neutral-200 overflow-hidden;
   }
   
   .card-hover {
     @apply card transition-all duration-200 hover:shadow-medium hover:-translate-y-1;
   }
   
-  /* Input Components */
+  /* Mobile-optimized Input Components */
   .input {
-    @apply w-full px-4 py-3 text-sm border border-neutral-300 rounded-xl bg-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+    @apply w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg bg-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+    /* Better mobile input handling */
+    -webkit-appearance: none;
+    appearance: none;
   }
   
   .input-error {
     @apply input border-error-300 focus:ring-error-500;
   }
   
-  /* Badge Components */
+  /* Mobile-optimized Badge Components */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
   }
   
   .badge-primary {
@@ -111,21 +122,63 @@
     animation-delay: 0.2s;
   }
   
-  /* Mobile-first responsive utilities */
+  /* Enhanced mobile-first responsive utilities */
   .container-mobile {
-    @apply px-4 sm:px-6 lg:px-8;
+    @apply px-3 sm:px-4 lg:px-6;
   }
   
   .grid-responsive {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6;
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4;
   }
   
   .text-responsive {
-    @apply text-sm sm:text-base;
+    @apply text-xs sm:text-sm;
   }
   
   .heading-responsive {
-    @apply text-xl sm:text-2xl lg:text-3xl font-bold;
+    @apply text-lg sm:text-xl lg:text-2xl font-bold;
+  }
+  
+  /* Mobile-specific text sizes */
+  .text-mobile-xs {
+    @apply text-xs;
+  }
+  
+  .text-mobile-sm {
+    @apply text-sm;
+  }
+  
+  .text-mobile-base {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-mobile-lg {
+    @apply text-base sm:text-lg;
+  }
+  
+  .text-mobile-xl {
+    @apply text-lg sm:text-xl;
+  }
+  
+  /* Mobile-optimized spacing */
+  .space-mobile {
+    @apply space-y-3 sm:space-y-4;
+  }
+  
+  .gap-mobile {
+    @apply gap-3 sm:gap-4;
+  }
+  
+  .p-mobile {
+    @apply p-3 sm:p-4;
+  }
+  
+  .px-mobile {
+    @apply px-3 sm:px-4;
+  }
+  
+  .py-mobile {
+    @apply py-2 sm:py-3;
   }
 }
 
@@ -179,6 +232,19 @@
   .safe-right {
     padding-right: env(safe-area-inset-right);
   }
+  
+  /* Mobile-specific utilities */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Prose styles for markdown content */
@@ -188,61 +254,63 @@
 }
 
 .prose h1 {
-  font-size: 1.5em;
-  margin-top: 1em;
+  font-size: 1.25em;
+  margin-top: 0.75em;
   margin-bottom: 0.5em;
   font-weight: 600;
 }
 
 .prose h2 {
-  font-size: 1.25em;
-  margin-top: 1em;
+  font-size: 1.125em;
+  margin-top: 0.75em;
   margin-bottom: 0.5em;
   font-weight: 600;
 }
 
 .prose p {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  font-size: 0.875em;
 }
 
 .prose ul {
   list-style-type: disc;
-  padding-left: 1.5em;
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  padding-left: 1.25em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .prose ol {
   list-style-type: decimal;
-  padding-left: 1.5em;
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  padding-left: 1.25em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .prose code {
   background-color: #f3f4f6;
-  padding: 0.2em 0.4em;
+  padding: 0.15em 0.3em;
   border-radius: 0.25em;
-  font-size: 0.875em;
+  font-size: 0.8em;
 }
 
 .prose pre {
   background-color: #f3f4f6;
-  padding: 1em;
+  padding: 0.75em;
   border-radius: 0.5em;
   overflow-x: auto;
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .prose blockquote {
-  border-left: 4px solid #e5e7eb;
-  padding-left: 1em;
+  border-left: 3px solid #e5e7eb;
+  padding-left: 0.75em;
   margin-left: 0;
   margin-right: 0;
   font-style: italic;
   color: #6b7280;
+  font-size: 0.875em;
 }
 
 .prose a {
@@ -254,8 +322,8 @@
   max-width: 100%;
   height: auto;
   border-radius: 0.5em;
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 /* Additional animations for the reimagined HomePage */
@@ -429,4 +497,60 @@
 
 .modern-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(102, 126, 234, 0.5);
+}
+
+/* Mobile-specific media queries */
+@media (max-width: 640px) {
+  /* Reduce font sizes on very small screens */
+  .text-mobile-xs {
+    font-size: 0.7rem;
+  }
+  
+  .text-mobile-sm {
+    font-size: 0.8rem;
+  }
+  
+  /* Adjust button sizes for better touch targets */
+  .btn {
+    min-height: 40px;
+    min-width: 48px;
+  }
+  
+  /* Reduce card padding on mobile */
+  .card {
+    padding: 0.75rem;
+  }
+  
+  /* Optimize grid gaps */
+  .grid-responsive {
+    gap: 0.75rem;
+  }
+  
+  /* Reduce spacing between elements */
+  .space-mobile > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
+/* iPhone Safari specific optimizations */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific styles */
+  .btn {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .card {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
