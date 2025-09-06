@@ -17,6 +17,10 @@ export default function AttendanceTab({ levelCode }) {
     startDate: getLocalDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
     endDate: getLocalDateString()
   });
+  const [quickActions, setQuickActions] = useState({
+    markAllPresent: false,
+    markAllAbsent: false
+  });
 
   // Helper function to get local date string
   function getLocalDateString(date = new Date()) {
@@ -134,6 +138,7 @@ export default function AttendanceTab({ levelCode }) {
 
       setShowBulkAttendanceModal(false);
       setBulkAttendance({});
+      setQuickActions({ markAllPresent: false, markAllAbsent: false });
       fetchAttendance();
     } catch (err) {
       setError(err.message);
@@ -154,7 +159,6 @@ export default function AttendanceTab({ levelCode }) {
 
       if (error) throw error;
 
-      // Update local state
       setAttendance(attendance.map(record => 
         record.id === attendanceId 
           ? { ...record, status: newStatus }
@@ -169,23 +173,49 @@ export default function AttendanceTab({ levelCode }) {
     }
   };
 
+  const handleQuickAction = (action) => {
+    const newBulkAttendance = {};
+    enrolledStudents.forEach(student => {
+      newBulkAttendance[student.id] = action === 'present' ? 'present' : 'absent';
+    });
+    setBulkAttendance(newBulkAttendance);
+    setQuickActions({
+      markAllPresent: action === 'present',
+      markAllAbsent: action === 'absent'
+    });
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'present':
-        return 'bg-green-100 text-green-800';
+        return 'bg-success-100 text-success-800';
       case 'absent':
-        return 'bg-red-100 text-red-800';
+        return 'bg-error-100 text-error-800';
       case 'late':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-warning-100 text-warning-800';
       case 'excused':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-primary-100 text-primary-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-neutral-100 text-neutral-800';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'present':
+        return '✅';
+      case 'absent':
+        return '❌';
+      case 'late':
+        return '⏰';
+      case 'excused':
+        return '📝';
+      default:
+        return '❓';
     }
   };
 
   const formatDate = (dateString) => {
-    // Create date in local timezone to avoid UTC issues
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
@@ -208,19 +238,27 @@ export default function AttendanceTab({ levelCode }) {
   };
 
   const renderAttendanceCard = (record) => (
-    <div key={record.id} className="bg-white rounded-2xl shadow-lg p-6 border border-indigo-100">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">{record.student.name}</h3>
-          <p className="text-sm text-gray-500">@{record.student.username}</p>
+    <div key={record.id} className="card p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">
+              {record.student.name.charAt(0)}
+            </span>
+          </div>
+          <div>
+            <h3 className="text-mobile-sm font-bold text-neutral-900">{record.student.name}</h3>
+            <p className="text-mobile-xs text-neutral-500">@{record.student.username}</p>
+          </div>
         </div>
-        <div className="flex items-center space-x-4">
+        
+        <div className="flex items-center gap-2">
           {editingAttendance === record.id ? (
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2">
               <select
                 value={record.status}
                 onChange={(e) => handleIndividualAttendanceUpdate(record.id, e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="text-mobile-xs border border-neutral-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={isSubmitting}
               >
                 <option value="present">Present</option>
@@ -230,26 +268,27 @@ export default function AttendanceTab({ levelCode }) {
               </select>
               <button
                 onClick={() => setEditingAttendance(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="btn-ghost p-1"
                 disabled={isSubmitting}
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
           ) : (
             <>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(record.status)}`}>
-                {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+              <span className={`badge ${getStatusColor(record.status)} flex items-center gap-1`}>
+                <span>{getStatusIcon(record.status)}</span>
+                <span className="capitalize">{record.status}</span>
               </span>
               <button
                 onClick={() => setEditingAttendance(record.id)}
-                className="text-indigo-600 hover:text-indigo-800"
+                className="btn-ghost p-1"
                 disabled={isSubmitting}
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </button>
             </>
@@ -264,77 +303,69 @@ export default function AttendanceTab({ levelCode }) {
     const sortedDates = Object.keys(groupedAttendance).sort((a, b) => new Date(b) - new Date(a));
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-gray-900">Previous Attendance Records</h3>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">From:</label>
-              <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
-                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">To:</label>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
-                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h3 className="text-mobile-lg font-bold text-neutral-900">Previous Attendance</h3>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="date"
+              value={dateRange.startDate}
+              onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
+              className="text-mobile-xs border border-neutral-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <input
+              type="date"
+              value={dateRange.endDate}
+              onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
+              className="text-mobile-xs border border-neutral-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
           </div>
         </div>
 
         {sortedDates.length === 0 ? (
-          <div className="text-center py-8">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No attendance records</h3>
-            <p className="mt-1 text-sm text-gray-500">No attendance has been recorded for the selected date range.</p>
+          <div className="card p-6 text-center">
+            <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <h3 className="text-mobile-base font-bold text-neutral-900 mb-2">No attendance records</h3>
+            <p className="text-mobile-xs text-neutral-600">No attendance has been recorded for the selected date range.</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {sortedDates.map((date) => (
-              <div key={date} className="bg-gray-50 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-semibold text-gray-900">{formatDate(date)}</h4>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">
-                      {groupedAttendance[date].length} students
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-green-600">
+              <div key={date} className="card p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
+                  <h4 className="text-mobile-base font-bold text-neutral-900">{formatDate(date)}</h4>
+                  <div className="flex items-center gap-2 text-mobile-xs text-neutral-600">
+                    <span>{groupedAttendance[date].length} students</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-success-600">
                         {groupedAttendance[date].filter(r => r.status === 'present').length} Present
                       </span>
-                      <span className="text-xs text-red-600">
+                      <span className="text-error-600">
                         {groupedAttendance[date].filter(r => r.status === 'absent').length} Absent
                       </span>
-                      <span className="text-xs text-yellow-600">
+                      <span className="text-warning-600">
                         {groupedAttendance[date].filter(r => r.status === 'late').length} Late
-                      </span>
-                      <span className="text-xs text-blue-600">
-                        {groupedAttendance[date].filter(r => r.status === 'excused').length} Excused
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-3">
+                <div className="space-y-2">
                   {groupedAttendance[date].map((record) => (
-                    <div key={record.id} className="bg-white rounded-lg p-4 border border-gray-200">
-                      <div className="flex justify-between items-center">
+                    <div key={record.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getStatusIcon(record.status)}</span>
                         <div>
-                          <h5 className="font-medium text-gray-900">{record.student.name}</h5>
-                          <p className="text-sm text-gray-500">@{record.student.username}</p>
+                          <h5 className="text-mobile-sm font-medium text-neutral-900">{record.student.name}</h5>
+                          <p className="text-mobile-xs text-neutral-500">@{record.student.username}</p>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(record.status)}`}>
-                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                        </span>
                       </div>
+                      <span className={`badge ${getStatusColor(record.status)}`}>
+                        {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -347,109 +378,135 @@ export default function AttendanceTab({ levelCode }) {
   };
 
   const renderBulkAttendanceModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-lg p-8 border border-indigo-100 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Take Attendance - {selectedDate}
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+          <h3 className="text-mobile-lg font-bold text-neutral-900">
+            Take Attendance - {formatDate(selectedDate)}
           </h3>
           <button
             onClick={() => {
               setShowBulkAttendanceModal(false);
               setBulkAttendance({});
+              setQuickActions({ markAllPresent: false, markAllAbsent: false });
             }}
-            className="text-gray-500 hover:text-gray-700"
+            className="btn-ghost p-1"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <form onSubmit={handleBulkAttendanceSubmit} className="space-y-6">
-          <div className="space-y-4">
-            {enrolledStudents.map((student) => (
-              <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-gray-900">{student.name}</h4>
-                  <p className="text-sm text-gray-500">@{student.username}</p>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <select
-                    value={bulkAttendance[student.id] || ''}
-                    onChange={(e) => setBulkAttendance({
-                      ...bulkAttendance,
-                      [student.id]: e.target.value
-                    })}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Select Status</option>
-                    <option value="present">Present</option>
-                    <option value="absent">Absent</option>
-                    <option value="late">Late</option>
-                    <option value="excused">Excused</option>
-                  </select>
-                </div>
-              </div>
-            ))}
+        <div className="p-4 max-h-[60vh] overflow-y-auto">
+          {/* Quick Actions */}
+          <div className="mb-4 p-3 bg-neutral-50 rounded-lg">
+            <h4 className="text-mobile-sm font-medium text-neutral-900 mb-2">Quick Actions</h4>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickAction('present')}
+                className={`btn ${quickActions.markAllPresent ? 'btn-success' : 'btn-secondary'} flex-1`}
+              >
+                ✅ Mark All Present
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickAction('absent')}
+                className={`btn ${quickActions.markAllAbsent ? 'btn-error' : 'btn-secondary'} flex-1`}
+              >
+                ❌ Mark All Absent
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-end gap-4 pt-4">
+          <form onSubmit={handleBulkAttendanceSubmit} className="space-y-3">
+            {enrolledStudents.map((student) => (
+              <div key={student.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-xs">
+                      {student.name.charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="text-mobile-sm font-medium text-neutral-900">{student.name}</h4>
+                    <p className="text-mobile-xs text-neutral-500">@{student.username}</p>
+                  </div>
+                </div>
+                <select
+                  value={bulkAttendance[student.id] || ''}
+                  onChange={(e) => setBulkAttendance({
+                    ...bulkAttendance,
+                    [student.id]: e.target.value
+                  })}
+                  className="text-mobile-xs border border-neutral-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Select Status</option>
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="late">Late</option>
+                  <option value="excused">Excused</option>
+                </select>
+              </div>
+            ))}
+          </form>
+        </div>
+
+        <div className="p-4 border-t border-neutral-200">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="button"
               onClick={() => {
                 setShowBulkAttendanceModal(false);
                 setBulkAttendance({});
+                setQuickActions({ markAllPresent: false, markAllAbsent: false });
               }}
-              className="px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="btn-secondary flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
+              onClick={handleBulkAttendanceSubmit}
               disabled={isSubmitting}
-              className={`inline-flex items-center px-6 py-3 rounded-lg text-white font-semibold ${
-                isSubmitting 
-                  ? 'bg-indigo-400 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
-              }`}
+              className="btn-primary flex-1 flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
+                  <div className="w-4 h-4 loading-spinner"></div>
+                  <span>Saving...</span>
                 </>
-              ) : 'Save Attendance'}
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Save Attendance</span>
+                </>
+              )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-          Attendance
-        </h2>
-        <div className="flex items-center space-x-4">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-mobile-xl font-bold text-neutral-900">Attendance</h2>
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="text-mobile-xs border border-neutral-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <button
             onClick={() => setShowPreviousAttendance(!showPreviousAttendance)}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ease-in-out ${
-              showPreviousAttendance 
-                ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
-            }`}
+            className={`btn ${showPreviousAttendance ? 'btn-secondary' : 'btn-primary'}`}
           >
             {showPreviousAttendance ? 'Hide Previous' : 'Show Previous'}
           </button>
@@ -458,20 +515,23 @@ export default function AttendanceTab({ levelCode }) {
               setShowBulkAttendanceModal(true);
               fetchEnrolledStudents();
             }}
-            className="px-6 py-3 rounded-lg text-white font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 ease-in-out"
+            className="btn-primary flex items-center gap-2"
           >
-            Take Attendance
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Take Attendance</span>
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+        <div className="card p-4">
           <div className="flex items-center gap-3">
-            <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg className="w-5 h-5 text-error-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-red-700 font-medium">{error}</p>
+            <p className="text-error-700 text-mobile-sm">{error}</p>
           </div>
         </div>
       )}
@@ -480,17 +540,25 @@ export default function AttendanceTab({ levelCode }) {
         renderPreviousAttendance()
       ) : (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Today's Attendance - {formatDate(selectedDate)}</h3>
+          <h3 className="text-mobile-base font-bold text-neutral-900">
+            Today's Attendance - {formatDate(selectedDate)}
+          </h3>
           {attendance.length === 0 ? (
-            <div className="text-center py-8">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No attendance recorded</h3>
-              <p className="mt-1 text-sm text-gray-500">No attendance has been recorded for {formatDate(selectedDate)}.</p>
+            <div className="card p-6 text-center">
+              <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <h3 className="text-mobile-base font-bold text-neutral-900 mb-2">No attendance recorded</h3>
+              <p className="text-mobile-xs text-neutral-600">
+                No attendance has been recorded for {formatDate(selectedDate)}.
+              </p>
             </div>
           ) : (
-            attendance.map(renderAttendanceCard)
+            <div className="space-y-3">
+              {attendance.map(renderAttendanceCard)}
+            </div>
           )}
         </div>
       )}

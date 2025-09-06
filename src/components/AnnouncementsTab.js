@@ -11,6 +11,8 @@ export default function AnnouncementsTab({ levelCode, teacherId }) {
   const [title, setTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editingField, setEditingField] = useState(null); // Track which field is being edited
 
   useEffect(() => {
     fetchAnnouncements();
@@ -18,6 +20,7 @@ export default function AnnouncementsTab({ levelCode, teacherId }) {
 
   const fetchAnnouncements = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('updates')
         .select('*')
@@ -28,6 +31,8 @@ export default function AnnouncementsTab({ levelCode, teacherId }) {
       setAnnouncements(data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -96,12 +101,60 @@ export default function AnnouncementsTab({ levelCode, teacherId }) {
     setShowAnnouncementForm(true);
   };
 
+  const handleInlineEdit = async (announcementId, field, value) => {
+    try {
+      const { error } = await supabase
+        .from('updates')
+        .update({ [field]: value })
+        .eq('id', announcementId);
+
+      if (error) throw error;
+      
+      // Update local state
+      setAnnouncements(announcements.map(announcement => 
+        announcement.id === announcementId 
+          ? { ...announcement, [field]: value }
+          : announcement
+      ));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const startInlineEdit = (announcementId, field) => {
+    setEditingField(`${announcementId}-${field}`);
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingField(null);
+  };
+
+  const saveInlineEdit = async (announcementId, field, value) => {
+    if (value && value.trim() !== '') {
+      await handleInlineEdit(announcementId, field, value.trim());
+    }
+    setEditingField(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 loading-spinner"></div>
+          <p className="text-neutral-600">Loading announcements...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-          Announcements
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gradient">Announcements</h2>
+          <p className="text-neutral-600 mt-1">Share updates and important information with your class</p>
+        </div>
+        
         <button
           onClick={() => {
             setEditingAnnouncement(null);
@@ -109,138 +162,201 @@ export default function AnnouncementsTab({ levelCode, teacherId }) {
             setContent('');
             setShowAnnouncementForm(true);
           }}
-          className="px-6 py-3 rounded-lg text-white font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 ease-in-out"
+          className="btn-primary px-4 py-2 text-sm font-semibold"
         >
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
           New Announcement
         </button>
       </div>
 
-      <div className="space-y-4">
-        {announcements.map((announcement) => (
-          <div key={announcement.id} className="bg-white rounded-2xl shadow-lg p-8 border border-indigo-100">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{announcement.title}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Posted: {new Date(announcement.created_at).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => startEditingAnnouncement(announcement)}
-                  className="text-indigo-600 hover:text-indigo-700 transition-colors duration-200"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => handleDeleteAnnouncement(announcement.id)}
-                  className="text-red-600 hover:text-red-700 transition-colors duration-200"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            
-            <div className="prose prose-sm max-w-none mt-4">
-              <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-                {announcement.content}
-              </ReactMarkdown>
-            </div>
+      {error && (
+        <div className="card p-4 border-l-4 border-error-500 bg-error-50">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-error-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-error-700 font-medium">{error}</p>
           </div>
-        ))}
+        </div>
+      )}
+
+      <div className="space-y-6">
+        {announcements.length === 0 ? (
+          <div className="card p-8 text-center">
+            <div className="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-neutral-900 mb-2">No announcements yet</h3>
+            <p className="text-neutral-500">Create your first announcement to share updates with your class.</p>
+          </div>
+        ) : (
+          announcements.map((announcement, index) => (
+            <div key={announcement.id} className="card p-6 animate-slide-up" style={{ animationDelay: `${index * 100}ms` }}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  {editingField === `${announcement.id}-title` ? (
+                    <input
+                      type="text"
+                      defaultValue={announcement.title}
+                      className="w-full text-lg font-bold text-neutral-900 bg-transparent border-b border-primary-500 focus:outline-none focus:border-primary-600"
+                      onBlur={(e) => saveInlineEdit(announcement.id, 'title', e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.target.blur();
+                        } else if (e.key === 'Escape') {
+                          cancelInlineEdit();
+                        }
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <h3 
+                      className="text-lg font-bold text-neutral-900 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors duration-200"
+                      onClick={() => startInlineEdit(announcement.id, 'title')}
+                    >
+                      {announcement.title}
+                    </h3>
+                  )}
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Posted: {new Date(announcement.created_at).toLocaleString()}
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => startEditingAnnouncement(announcement)}
+                    className="btn-secondary text-sm px-3 py-2"
+                  >
+                    Edit Full
+                  </button>
+                  <button
+                    onClick={() => handleDeleteAnnouncement(announcement.id)}
+                    className="btn-ghost text-error-600 hover:text-error-700 text-sm px-3 py-2"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              
+              <div className="prose prose-sm max-w-none">
+                {editingField === `${announcement.id}-content` ? (
+                  <textarea
+                    defaultValue={announcement.content}
+                    className="w-full p-3 border border-primary-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                    rows={6}
+                    onBlur={(e) => saveInlineEdit(announcement.id, 'content', e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Escape') {
+                        cancelInlineEdit();
+                      }
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <div 
+                    className="cursor-pointer hover:bg-neutral-50 p-3 rounded-lg transition-colors duration-200"
+                    onClick={() => startInlineEdit(announcement.id, 'content')}
+                  >
+                    <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+                      {announcement.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Announcement Form Modal */}
       {showAnnouncementForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-indigo-100 w-full max-w-2xl">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 safe-top safe-bottom">
+          <div className="bg-white rounded-3xl shadow-large w-full max-w-2xl p-8 animate-scale-in">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-neutral-900">
                 {editingAnnouncement ? 'Edit Announcement' : 'New Announcement'}
               </h3>
+              <button
+                onClick={() => {
+                  setShowAnnouncementForm(false);
+                  setEditingAnnouncement(null);
+                  setTitle('');
+                  setContent('');
+                }}
+                className="p-2 hover:bg-neutral-100 rounded-xl transition-colors duration-200"
+              >
+                <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             {error && (
-              <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+              <div className="mb-6 p-4 bg-error-50 border border-error-200 rounded-2xl">
                 <div className="flex items-center gap-3">
-                  <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="h-5 w-5 text-error-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-red-700 font-medium">{error}</p>
+                  <p className="text-error-700 font-medium">{error}</p>
                 </div>
               </div>
             )}
 
             <form onSubmit={handleAnnouncementSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out"
-                    placeholder="Enter the title of the announcement"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="content" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Content
-                  </label>
-                  <textarea
-                    id="content"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out resize-none"
-                    rows={6}
-                    placeholder="What's new in class today?"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="input"
+                  placeholder="Enter the title of the announcement"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Content</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="input"
+                  rows={6}
+                  placeholder="What's new in class today?"
+                  required
+                />
               </div>
 
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAnnouncementForm(false);
                     setEditingAnnouncement(null);
+                    setTitle('');
+                    setContent('');
                   }}
-                  className="px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`inline-flex items-center px-6 py-3 rounded-lg text-white font-semibold transition-all duration-200 ease-in-out ${
-                    isSubmitting 
-                      ? 'bg-indigo-400 cursor-not-allowed' 
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                  }`}
+                  className="btn-primary"
                 >
                   {isSubmitting ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
+                      <div className="w-4 h-4 loading-spinner mr-2"></div>
                       {editingAnnouncement ? 'Updating...' : 'Posting...'}
                     </>
-                  ) : editingAnnouncement ? 'Update Announcement' : 'Post Announcement'}
+                  ) : (
+                    editingAnnouncement ? 'Update Announcement' : 'Post Announcement'
+                  )}
                 </button>
               </div>
             </form>

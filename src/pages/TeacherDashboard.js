@@ -5,6 +5,7 @@ import AnnouncementsTab from '../components/AnnouncementsTab';
 import GradesTab from '../components/GradesTab';
 import AssignmentsTab from '../components/AssignmentsTab';
 import AttendanceTab from '../components/AttendanceTab';
+import AddStudentModal from '../components/AddStudentModal';
 
 export default function TeacherDashboard() {
   const { levelCode } = useParams();
@@ -17,6 +18,7 @@ export default function TeacherDashboard() {
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [editingStudent, setEditingStudent] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalAssignments: 0,
@@ -180,6 +182,29 @@ export default function TeacherDashboard() {
     }
   };
 
+  const handleStudentAdded = () => {
+    fetchEnrolledStudents();
+    fetchDashboardData(); // Update stats
+  };
+
+  const handleRemoveStudent = async (studentId) => {
+    if (window.confirm('Are you sure you want to remove this student from the class?')) {
+      try {
+        const { error } = await supabase
+          .from('student_enrollment')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('level_code', levelCode);
+
+        if (error) throw error;
+        await fetchEnrolledStudents();
+        await fetchDashboardData(); // Update stats
+      } catch (err) {
+        setError(err.message);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-neutral-50 flex items-center justify-center">
@@ -220,14 +245,25 @@ export default function TeacherDashboard() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Student Management</h2>
+          <h2 className="text-2xl font-bold text-gradient">Student Management</h2>
           <p className="text-neutral-600 mt-1">Manage enrolled students and their information</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-neutral-500">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          {enrolledStudents.length} student{enrolledStudents.length !== 1 ? 's' : ''}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            {enrolledStudents.length} student{enrolledStudents.length !== 1 ? 's' : ''}
+          </div>
+          <button
+            onClick={() => setShowAddStudentModal(true)}
+            className="btn-primary px-4 py-2 text-sm font-semibold"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add Students
+          </button>
         </div>
       </div>
 
@@ -250,87 +286,119 @@ export default function TeacherDashboard() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {enrolledStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-neutral-50 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
-                        <span className="text-white font-semibold text-sm">
-                          {student.name?.charAt(0)?.toUpperCase()}
-                        </span>
+              {enrolledStudents.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center">
+                        <svg className="w-8 h-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-neutral-900">
-                          {editingStudent === student.id ? (
-                            <input
-                              type="text"
-                              defaultValue={student.name}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                              onBlur={(e) => handleStudentUpdate(student.id, { ...student, name: e.target.value })}
-                            />
-                          ) : (
-                            student.name
-                          )}
-                        </div>
-                        <div className="text-sm text-neutral-500">
-                          {editingStudent === student.id ? (
-                            <input
-                              type="text"
-                              defaultValue={student.username}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                              onBlur={(e) => handleStudentUpdate(student.id, { ...student, username: e.target.value })}
-                            />
-                          ) : (
-                            student.username
-                          )}
-                        </div>
+                        <h3 className="text-lg font-bold text-neutral-900 mb-2">No students enrolled yet</h3>
+                        <p className="text-neutral-500 mb-4">Add students to get started with your class.</p>
+                        <button
+                          onClick={() => setShowAddStudentModal(true)}
+                          className="btn-primary"
+                        >
+                          Add Your First Student
+                        </button>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-neutral-500">
-                      {editingStudent === student.id ? (
-                        <input
-                          type="email"
-                          defaultValue={student.email}
-                          className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                          onBlur={(e) => handleStudentUpdate(student.id, { ...student, email: e.target.value })}
-                        />
-                      ) : (
-                        student.email
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-neutral-500">
-                      {editingStudent === student.id ? (
-                        <input
-                          type="text"
-                          defaultValue={student.code}
-                          className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                          onBlur={(e) => handleStudentUpdate(student.id, { ...student, code: e.target.value })}
-                        />
-                      ) : (
-                        <span className="bg-neutral-100 text-neutral-700 px-2 py-1 rounded-lg text-xs font-medium">
-                          {student.code}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                    {new Date(student.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                    <button
-                      onClick={() => setEditingStudent(editingStudent === student.id ? null : student.id)}
-                      className="text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
-                      disabled={isSubmitting}
-                    >
-                      {editingStudent === student.id ? 'Save' : 'Edit'}
-                    </button>
-                  </td>
                 </tr>
-              ))}
+              ) : (
+                enrolledStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-neutral-50 transition-colors duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
+                          <span className="text-white font-semibold text-sm">
+                            {student.name?.charAt(0)?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-neutral-900">
+                            {editingStudent === student.id ? (
+                              <input
+                                type="text"
+                                defaultValue={student.name}
+                                className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                                onBlur={(e) => handleStudentUpdate(student.id, { ...student, name: e.target.value })}
+                              />
+                            ) : (
+                              student.name
+                            )}
+                          </div>
+                          <div className="text-sm text-neutral-500">
+                            {editingStudent === student.id ? (
+                              <input
+                                type="text"
+                                defaultValue={student.username}
+                                className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                                onBlur={(e) => handleStudentUpdate(student.id, { ...student, username: e.target.value })}
+                              />
+                            ) : (
+                              student.username
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-neutral-500">
+                        {editingStudent === student.id ? (
+                          <input
+                            type="email"
+                            defaultValue={student.email}
+                            className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                            onBlur={(e) => handleStudentUpdate(student.id, { ...student, email: e.target.value })}
+                          />
+                        ) : (
+                          student.email
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-neutral-500">
+                        {editingStudent === student.id ? (
+                          <input
+                            type="text"
+                            defaultValue={student.code}
+                            className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
+                            onBlur={(e) => handleStudentUpdate(student.id, { ...student, code: e.target.value })}
+                          />
+                        ) : (
+                          <span className="bg-neutral-100 text-neutral-700 px-2 py-1 rounded-lg text-xs font-medium">
+                            {student.code}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                      {new Date(student.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingStudent(editingStudent === student.id ? null : student.id)}
+                          className="text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+                          disabled={isSubmitting}
+                        >
+                          {editingStudent === student.id ? 'Save' : 'Edit'}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveStudent(student.id)}
+                          className="text-error-600 hover:text-error-700 font-medium transition-colors duration-200"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -403,6 +471,14 @@ export default function TeacherDashboard() {
           {activeTab === 'students' && renderStudentsTab()}
         </div>
       </main>
+
+      {/* Add Student Modal */}
+      <AddStudentModal
+        isOpen={showAddStudentModal}
+        onClose={() => setShowAddStudentModal(false)}
+        levelCode={levelCode}
+        onStudentAdded={handleStudentAdded}
+      />
     </div>
   );
 }

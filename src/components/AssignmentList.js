@@ -11,8 +11,9 @@ export default function AssignmentList({ levelCode, studentId }) {
   const [submission, setSubmission] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionsByAssignment, setSubmissionsByAssignment] = useState({});
-  const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: string }
+  const [toast, setToast] = useState(null);
   const [showHistoryAssignmentId, setShowHistoryAssignmentId] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all'); // all, submitted, pending
 
   useEffect(() => {
     fetchAssignments();
@@ -30,7 +31,6 @@ export default function AssignmentList({ levelCode, studentId }) {
       if (error) throw error;
       setAssignments(data || []);
 
-      // After loading assignments, fetch student's submissions for these assignments
       const assignmentIds = (data || []).map(a => a.id);
       if (assignmentIds.length > 0 && studentId) {
         await fetchSubmissionsForAssignments(assignmentIds);
@@ -74,6 +74,14 @@ export default function AssignmentList({ levelCode, studentId }) {
     return (assignmentId) => submissionsByAssignment[assignmentId]?.[0] || null;
   }, [submissionsByAssignment]);
 
+  const filteredAssignments = useMemo(() => {
+    if (filterStatus === 'all') return assignments;
+    return assignments.filter(assignment => {
+      const submitted = hasSubmitted(assignment.id);
+      return filterStatus === 'submitted' ? submitted : !submitted;
+    });
+  }, [assignments, filterStatus, hasSubmitted]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedAssignment) return;
@@ -101,7 +109,6 @@ export default function AssignmentList({ levelCode, studentId }) {
 
       if (error) throw error;
 
-      // Optimistically update local state
       setSubmissionsByAssignment(prev => {
         const prevList = prev[selectedAssignment.id] || [];
         return { ...prev, [selectedAssignment.id]: [data, ...prevList] };
@@ -117,7 +124,6 @@ export default function AssignmentList({ levelCode, studentId }) {
     }
   };
 
-  // Auto-dismiss toasts
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -127,92 +133,144 @@ export default function AssignmentList({ levelCode, studentId }) {
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+        <div className="w-8 h-8 loading-spinner"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-        <p className="text-red-700">{error}</p>
+      <div className="card p-4">
+        <div className="flex items-center gap-3">
+          <svg className="w-5 h-5 text-error-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-error-700 text-mobile-sm">{error}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-4 relative">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${
-          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white animate-slide-up ${
+          toast.type === 'success' ? 'bg-success-600' : 'bg-error-600'
         }`}>
           <div className="flex items-center gap-2">
             <span>{toast.type === 'success' ? '✅' : '⚠️'}</span>
-            <span className="font-medium">{toast.message}</span>
+            <span className="font-medium text-sm">{toast.message}</span>
           </div>
         </div>
       )}
 
-      <h2 className="text-2xl font-bold text-gray-900">Assignments</h2>
+      {/* Header with Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-mobile-xl font-bold text-neutral-900">Assignments</h2>
+        
+        {assignments.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-mobile-xs text-neutral-600">Filter:</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="text-mobile-xs border border-neutral-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">All</option>
+              <option value="submitted">Submitted</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+        )}
+      </div>
       
-      {assignments.length === 0 ? (
-        <div className="bg-white rounded-xl p-6 shadow-md border border-indigo-100">
-          <p className="text-gray-600">No assignments available yet.</p>
+      {filteredAssignments.length === 0 ? (
+        <div className="card p-6 text-center">
+          <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-mobile-base font-bold text-neutral-900 mb-2">
+            {filterStatus === 'all' ? 'No assignments available' : `No ${filterStatus} assignments`}
+          </h3>
+          <p className="text-mobile-xs text-neutral-600">
+            {filterStatus === 'all' ? 'Assignments will appear here when created.' : `No ${filterStatus} assignments found.`}
+          </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {assignments.map((assignment) => {
+        <div className="space-y-3">
+          {filteredAssignments.map((assignment, index) => {
             const submitted = hasSubmitted(assignment.id);
             const latest = latestSubmission(assignment.id);
+            const isOverdue = assignment.due_date && new Date(assignment.due_date) < new Date() && !submitted;
 
             return (
-              <div key={assignment.id} className="bg-white rounded-xl shadow-md overflow-hidden border border-indigo-100">
-                <div className="p-6">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold text-gray-900">{assignment.title}</h3>
+              <div key={assignment.id} className="card p-4 animate-slide-up" style={{ animationDelay: `${index * 100}ms` }}>
+                <div className="space-y-3">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-mobile-base font-bold text-neutral-900 truncate">{assignment.title}</h3>
                         {submitted ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Submitted
-                          </span>
+                          <span className="badge badge-success">Submitted</span>
+                        ) : isOverdue ? (
+                          <span className="badge badge-error">Overdue</span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Not submitted
-                          </span>
+                          <span className="badge badge-warning">Pending</span>
                         )}
                       </div>
-                      <div className="mt-1 text-sm text-gray-500 flex flex-wrap gap-3">
-                        <span>Due: {new Date(assignment.due_date).toLocaleString()}</span>
-                        <span>Max Score: {assignment.max_score}</span>
+                      <div className="flex flex-wrap gap-2 text-mobile-xs text-neutral-500">
+                        <span>Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No due date'}</span>
+                        <span>•</span>
+                        <span>Max: {assignment.max_score} pts</span>
                         {latest && (
-                          <span>Last submitted: {new Date(latest.submitted_at).toLocaleString()}</span>
+                          <>
+                            <span>•</span>
+                            <span>Last: {new Date(latest.submitted_at).toLocaleDateString()}</span>
+                          </>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setSelectedAssignment(assignment)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                      >
-                        {submitted ? 'Resubmit' : 'Submit Response'}
-                      </button>
-                      {submitted && (
-                        <button
-                          onClick={() => setShowHistoryAssignmentId(assignment.id)}
-                          className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                        >
-                          View Submissions
-                        </button>
-                      )}
                     </div>
                   </div>
 
-                  <div className="prose prose-sm max-w-none mt-4">
-                    <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-                      {assignment.description}
-                    </ReactMarkdown>
+                  {/* Description Preview */}
+                  {assignment.description && (
+                    <div className="prose prose-sm max-w-none text-mobile-xs text-neutral-600 line-clamp-2">
+                      <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+                        {assignment.description.length > 100 
+                          ? assignment.description.substring(0, 100) + '...' 
+                          : assignment.description
+                        }
+                      </ReactMarkdown>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <button
+                      onClick={() => setSelectedAssignment(assignment)}
+                      className="btn-primary flex-1 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>{submitted ? 'Resubmit' : 'Submit Response'}</span>
+                    </button>
+                    
+                    {submitted && (
+                      <button
+                        onClick={() => setShowHistoryAssignmentId(assignment.id)}
+                        className="btn-secondary flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="hidden sm:inline">History</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -223,87 +281,114 @@ export default function AssignmentList({ levelCode, studentId }) {
 
       {/* Submission Modal */}
       {selectedAssignment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">
-                Submit Response: {selectedAssignment.title}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+              <h3 className="text-mobile-lg font-bold text-neutral-900">
+                {selectedAssignment.title}
               </h3>
               <button
                 onClick={() => setSelectedAssignment(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="btn-ghost p-1"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Response
-                </label>
-                <textarea
-                  value={submission}
-                  onChange={(e) => setSubmission(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out resize-none"
-                  rows={8}
-                  placeholder="Enter your assignment response here..."
-                  required
-                />
-                <div className="mt-1 text-xs text-gray-500 flex justify-between">
-                  <span>Minimum 10 characters</span>
-                  <span>{submission.trim().length} characters</span>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {/* Assignment Details */}
+              <div className="mb-4 p-3 bg-neutral-50 rounded-lg">
+                <div className="text-mobile-xs text-neutral-600 mb-2">
+                  Due: {selectedAssignment.due_date ? new Date(selectedAssignment.due_date).toLocaleString() : 'No due date'} • 
+                  Max Score: {selectedAssignment.max_score} points
                 </div>
+                {selectedAssignment.description && (
+                  <div className="prose prose-sm max-w-none text-mobile-sm">
+                    <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+                      {selectedAssignment.description}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
 
-              <div className="flex justify-end gap-4">
-                <button
-                  type="button"
-                  onClick={() => setSelectedAssignment(null)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`px-4 py-2 rounded-md text-white ${
-                    isSubmitting
-                      ? 'bg-indigo-400 cursor-not-allowed'
-                      : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Response'}
-                </button>
-              </div>
-            </form>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-mobile-sm font-medium text-neutral-700 mb-2">
+                    Your Response
+                  </label>
+                  <textarea
+                    value={submission}
+                    onChange={(e) => setSubmission(e.target.value)}
+                    className="input resize-none"
+                    rows={6}
+                    placeholder="Enter your assignment response here..."
+                    required
+                  />
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-mobile-xs text-neutral-500">Minimum 10 characters</span>
+                    <span className="text-mobile-xs text-neutral-500">{submission.trim().length} characters</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAssignment(null)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || submission.trim().length < 10}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 loading-spinner"></div>
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Submit Response</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Submission History Modal */}
       {showHistoryAssignmentId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-3xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">Your Submissions</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+              <h3 className="text-mobile-lg font-bold text-neutral-900">Submission History</h3>
               <button
                 onClick={() => setShowHistoryAssignmentId(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="btn-ghost p-1"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              {(submissionsByAssignment[showHistoryAssignmentId] || []).map((sub) => (
-                <div key={sub.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="text-sm text-gray-500 mb-2">Submitted on {new Date(sub.submitted_at).toLocaleString()}</div>
-                  <div className="prose prose-sm max-w-none">
+            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3">
+              {(submissionsByAssignment[showHistoryAssignmentId] || []).map((sub, index) => (
+                <div key={sub.id} className="border border-neutral-200 rounded-lg p-3">
+                  <div className="text-mobile-xs text-neutral-500 mb-2">
+                    Submission #{index + 1} • {new Date(sub.submitted_at).toLocaleString()}
+                  </div>
+                  <div className="prose prose-sm max-w-none text-mobile-sm">
                     <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
                       {sub.content}
                     </ReactMarkdown>
@@ -311,14 +396,16 @@ export default function AssignmentList({ levelCode, studentId }) {
                 </div>
               ))}
               {(submissionsByAssignment[showHistoryAssignmentId] || []).length === 0 && (
-                <div className="text-gray-500">No submissions yet.</div>
+                <div className="text-center py-8">
+                  <p className="text-mobile-sm text-neutral-500">No submissions yet.</p>
+                </div>
               )}
             </div>
 
-            <div className="flex justify-end mt-6">
+            <div className="p-4 border-t border-neutral-200">
               <button
                 onClick={() => setShowHistoryAssignmentId(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                className="btn-secondary w-full"
               >
                 Close
               </button>

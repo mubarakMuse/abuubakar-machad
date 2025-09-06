@@ -69,7 +69,7 @@ export default function AuthWrapper({ children }) {
       const { data: userData, error } = await supabase
         .from('users')
         .select('id, name, username, role, code')
-        .eq('code', password)
+        .eq('code', password.toLowerCase())
         .single();
 
       if (error) throw error;

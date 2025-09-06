@@ -8,7 +8,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [stats, setStats] = useState({ totalClasses: 0, recentActivity: 0, upcomingAssignments: 0 });
   const [currentTime, setCurrentTime] = useState(new Date());
   const navigate = useNavigate();
 
@@ -30,12 +29,6 @@ export default function HomePage() {
       fetchLevels();
     }
   }, [userData]);
-
-  useEffect(() => {
-    if (userData && (userLevels.length > 0 || levels.length > 0)) {
-      fetchStats();
-    }
-  }, [userData, userLevels, levels]);
 
   const fetchLevels = async () => {
     try {
@@ -76,62 +69,6 @@ export default function HomePage() {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    if (!userData) return;
-    
-    try {
-      if (userData.role === 'student') {
-        // Fetch student-specific stats
-        const levelCodes = userLevels.map(level => level.code);
-        
-        if (levelCodes.length > 0) {
-          const { data: assignments } = await supabase
-            .from('assignments')
-            .select('*')
-            .in('level_code', levelCodes)
-            .gte('due_date', new Date().toISOString())
-            .order('due_date', { ascending: true });
-
-          setStats({
-            totalClasses: userLevels.length,
-            recentActivity: 0, // Could be implemented with activity tracking
-            upcomingAssignments: assignments?.length || 0
-          });
-        } else {
-          setStats({
-            totalClasses: 0,
-            recentActivity: 0,
-            upcomingAssignments: 0
-          });
-        }
-      } else if (userData.role === 'instructor') {
-        // Fetch teacher-specific stats
-        const levelCodes = levels.map(level => level.code);
-        
-        if (levelCodes.length > 0) {
-          const { data: students } = await supabase
-            .from('student_enrollment')
-            .select('student_id')
-            .in('level_code', levelCodes);
-
-          setStats({
-            totalClasses: levels.length,
-            recentActivity: 0,
-            upcomingAssignments: 0
-          });
-        } else {
-          setStats({
-            totalClasses: 0,
-            recentActivity: 0,
-            upcomingAssignments: 0
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err);
     }
   };
 
@@ -206,24 +143,6 @@ export default function HomePage() {
               })}
             </p>
           </div>
-          
-          {/* Quick Stats Cards */}
-          <div className="flex gap-3 sm:gap-4">
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl px-4 py-3 border border-white/20 shadow-soft">
-              <div className="text-center">
-                <div className="text-lg font-bold text-primary-600">{stats.totalClasses}</div>
-                <div className="text-xs text-neutral-500">Classes</div>
-              </div>
-            </div>
-            {userData?.role === 'student' && (
-              <div className="bg-white/60 backdrop-blur-sm rounded-2xl px-4 py-3 border border-white/20 shadow-soft">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-warning-600">{stats.upcomingAssignments}</div>
-                  <div className="text-xs text-neutral-500">Due Soon</div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
@@ -255,27 +174,9 @@ export default function HomePage() {
                 : 'Manage your classes, engage with students, and foster academic excellence.'
               }
             </p>
-            
-            {userData?.role === 'student' && stats.upcomingAssignments > 0 && (
-              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-warning-500 rounded-xl flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white">You have {stats.upcomingAssignments} assignment{stats.upcomingAssignments > 1 ? 's' : ''} due soon</p>
-                    <p className="text-primary-100 text-sm">Check your classes for details</p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </section>
-
-
 
       {/* Classes Section */}
       <section className="container-mobile pb-12 sm:pb-16 lg:pb-20">
