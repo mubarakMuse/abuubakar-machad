@@ -11,7 +11,6 @@ export default function AttendanceTab({ levelCode }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [editingCell, setEditingCell] = useState(null);
-  const [stats, setStats] = useState({});
 
   // Helper function to get local date string
   function getLocalDateString(date = new Date()) {
@@ -74,29 +73,11 @@ export default function AttendanceTab({ levelCode }) {
       });
 
       setAttendanceData(attendanceMap);
-      calculateStats(data);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const calculateStats = (data) => {
-    const studentStats = {};
-    
-    students.forEach(student => {
-      const studentAttendance = data.filter(record => record.student_id === student.id);
-      const present = studentAttendance.filter(record => record.status === 'present').length;
-      const total = studentAttendance.length;
-      
-      studentStats[student.id] = {
-        present,
-        total,
-        percentage: total > 0 ? Math.round((present / total) * 100) : 0
-      };
-    });
-
-    setStats(studentStats);
-  };
 
   const handleAttendanceChange = async (studentId, date, status) => {
     const key = `${studentId}-${date}`;
@@ -237,51 +218,49 @@ export default function AttendanceTab({ levelCode }) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-          <h2 className="text-xl font-bold text-gray-900">Attendance</h2>
-          <p className="text-sm text-gray-600">
-            Student names in first column, attendance days as columns
-          </p>
+      <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Attendance</h2>
+          <div className="text-xs text-gray-500">
+            {students.length}s • {attendanceDates.length}d
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-sm text-gray-500">
-            {students.length} students • {attendanceDates.length} days
-            </div>
-        </div>
+        <p className="text-xs text-gray-600">
+          Student names in first column, attendance days as columns
+        </p>
       </div>
 
       {/* Add New Attendance */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-4">
+      <div className="card p-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="input text-sm"
+              className="input text-xs flex-1"
             />
             <button
               onClick={() => setShowAddAttendance(!showAddAttendance)}
-              className="btn-primary text-sm"
+              className="btn-primary text-xs px-3 py-2"
             >
-              {showAddAttendance ? 'Cancel' : 'Add New Attendance'}
+              {showAddAttendance ? 'Cancel' : 'Add New'}
             </button>
           </div>
           {showAddAttendance && (
             <button
               onClick={handleAddNewAttendance}
               disabled={isSubmitting}
-              className="btn-success text-sm flex items-center gap-2"
+              className="btn-success text-xs flex items-center justify-center gap-2 py-2"
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 loading-spinner"></div>
+                  <div className="w-3 h-3 loading-spinner"></div>
                   Adding...
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Add for {formatDate(selectedDate)}
@@ -317,17 +296,17 @@ export default function AttendanceTab({ levelCode }) {
 
       {/* Attendance Grid */}
       {attendanceDates.length === 0 ? (
-        <div className="card p-8 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="card p-6 text-center">
+          <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">No Attendance Records</h3>
-          <p className="text-gray-600 mb-4">No attendance has been taken yet for this class.</p>
+          <h3 className="text-base font-bold text-gray-900 mb-2">No Attendance Records</h3>
+          <p className="text-sm text-gray-600 mb-4">No attendance has been taken yet for this class.</p>
           <button
             onClick={() => setShowAddAttendance(true)}
-            className="btn-primary"
+            className="btn-primary text-sm"
           >
             Take First Attendance
           </button>
@@ -335,41 +314,31 @@ export default function AttendanceTab({ levelCode }) {
           ) : (
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-xs">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 min-w-[200px]">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-700 border-b border-gray-200 sticky left-0 bg-gray-50 z-10 min-w-[120px]">
                     Student
                   </th>
                   {attendanceDates.map(date => (
-                    <th key={date} className="px-3 py-3 text-center text-sm font-medium text-gray-700 border-b border-gray-200 min-w-[120px]">
+                    <th key={date} className="px-1 py-2 text-center text-xs font-medium text-gray-700 border-b border-gray-200 min-w-[60px]">
                       <div className="flex flex-col items-center">
                         <span className="text-xs text-gray-500">{formatDate(date)}</span>
                       </div>
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 border-b border-gray-200 min-w-[100px]">
-                    Stats
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {students.map(student => (
                   <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-gray-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
-                          <span className="text-white font-bold text-xs">
-                            {student.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 text-sm">{student.name}</div>
-                          <div className="text-xs text-gray-500">@{student.username}</div>
-                          {student.code && (
-                            <div className="text-xs text-gray-400">Code: {student.code}</div>
-                          )}
-                        </div>
+                    <td className="px-2 py-2 sticky left-0 bg-white z-10 border-r border-gray-200">
+                      <div className="flex flex-col">
+                        <div className="font-medium text-gray-900 text-xs truncate">{student.name}</div>
+                        <div className="text-xs text-gray-500 truncate">@{student.username}</div>
+                        {student.code && (
+                          <div className="text-xs text-gray-400 truncate">{student.code}</div>
+                        )}
             </div>
                     </td>
                     {attendanceDates.map(date => {
@@ -377,25 +346,25 @@ export default function AttendanceTab({ levelCode }) {
                       const isEditing = editingCell === `${student.id}-${date}`;
                       
                       return (
-                        <td key={date} className="px-3 py-2 text-center border-r border-gray-100">
+                        <td key={date} className="px-1 py-1 text-center border-r border-gray-100">
                           {isEditing ? (
                             <select
                               value={status}
                               onChange={(e) => handleAttendanceChange(student.id, date, e.target.value)}
                               onBlur={() => setEditingCell(null)}
-                              className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full text-xs border border-gray-300 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
                               autoFocus
                             >
                               <option value="">-</option>
-                              <option value="present">Present</option>
-                              <option value="absent">Absent</option>
-                              <option value="late">Late</option>
-                              <option value="excused">Excused</option>
+                              <option value="present">P</option>
+                              <option value="absent">A</option>
+                              <option value="late">L</option>
+                              <option value="excused">E</option>
                             </select>
                           ) : (
                             <button
                               onClick={() => setEditingCell(`${student.id}-${date}`)}
-                              className={`w-full px-2 py-1 text-xs rounded border transition-colors ${
+                              className={`w-full px-1 py-1 text-xs rounded border transition-colors ${
                                 status 
                                   ? getStatusColor(status)
                                   : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
@@ -403,28 +372,22 @@ export default function AttendanceTab({ levelCode }) {
                               disabled={isSubmitting}
                             >
                               {status ? (
-                                <span className="flex items-center justify-center gap-1">
-                                  <span>{getStatusIcon(status)}</span>
-                                  <span className="capitalize">{status}</span>
+                                <span className="flex items-center justify-center">
+                                  <span className="text-xs font-bold">
+                                    {status === 'present' ? 'P' : 
+                                     status === 'absent' ? 'A' : 
+                                     status === 'late' ? 'L' : 
+                                     status === 'excused' ? 'E' : '?'}
+                                  </span>
                                 </span>
                               ) : (
-                                <span className="text-gray-400">Click to mark</span>
+                                <span className="text-gray-400 text-xs">-</span>
                               )}
                             </button>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3 text-center">
-                      <div className="text-xs">
-                        <div className="font-medium text-gray-900">
-                          {stats[student.id]?.percentage || 0}%
-                        </div>
-                        <div className="text-gray-500">
-                          {stats[student.id]?.present || 0}/{stats[student.id]?.total || 0}
-                        </div>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
