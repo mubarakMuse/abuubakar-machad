@@ -378,7 +378,7 @@ export default function GradesTab({ levelCode }) {
                     <div key={grade.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-2xl">
                       <div className="flex-1">
                         <h4 className="font-semibold text-neutral-900">{grade.assignment?.title}</h4>
-                        <p className="text-sm text-neutral-600">Due: {new Date(grade.assignment?.due_date).toLocaleDateString()}</p>
+                        <p className="text-sm text-neutral-600">Due: {grade.assignment?.due_date ? new Date(grade.assignment.due_date).toLocaleDateString() : 'No due date'}</p>
                       </div>
                       
                       <div className="flex items-center gap-4">
@@ -427,7 +427,7 @@ export default function GradesTab({ levelCode }) {
                     <div key={`missing-${assignment.id}`} className="flex items-center justify-between p-4 bg-warning-50 rounded-2xl border border-warning-200">
                       <div className="flex-1">
                         <h4 className="font-semibold text-neutral-900">{assignment.title}</h4>
-                        <p className="text-sm text-neutral-600">Due: {new Date(assignment.due_date).toLocaleDateString()}</p>
+                        <p className="text-sm text-neutral-600">Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No due date'}</p>
                       </div>
                       
                       <div className="flex items-center gap-4">

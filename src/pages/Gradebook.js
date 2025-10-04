@@ -19,7 +19,7 @@ export default function Gradebook({  }) {
         .from('assignments')
         .select('*')
         .eq('level_code', levelCode)
-        .order('due_date', { ascending: true });
+        .order('due_date', { ascending: true, nullsLast: true });
       
       // Fetch students
       const { data: studentsData } = await supabase

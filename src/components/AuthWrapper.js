@@ -16,8 +16,8 @@ export default function AuthWrapper({ children }) {
       const authData = sessionStorage.getItem('user_auth');
       if (authData) {
         const { timestamp, user } = JSON.parse(authData);
-        // Check if 1 hour have passed
-        if (Date.now() - timestamp < 60 * 60 * 1000) {
+        // Check if 4 hours have passed
+        if (Date.now() - timestamp < 4 * 60 * 60 * 1000) {
           // Still valid, set user data
           setUserData(user);
           setLoading(false);
@@ -43,7 +43,7 @@ export default function AuthWrapper({ children }) {
       const authData = sessionStorage.getItem('user_auth');
       if (authData) {
         const { timestamp } = JSON.parse(authData);
-        const timeRemaining = 60 * 60 * 1000 - (Date.now() - timestamp);
+        const timeRemaining = 4 * 60 * 60 * 1000 - (Date.now() - timestamp);
         if (timeRemaining > 0) {
           const minutes = Math.floor(timeRemaining / 60000);
           const seconds = Math.floor((timeRemaining % 60000) / 1000);
@@ -59,6 +59,7 @@ export default function AuthWrapper({ children }) {
 
     return () => clearInterval(timerInterval);
   }, [userData]);
+
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();

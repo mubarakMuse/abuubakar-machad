@@ -220,6 +220,7 @@ export default function AssignmentsTab({ levelCode, teacherId }) {
     }
   };
 
+
   const startEditingAssignment = (assignment) => {
     setEditingAssignment(assignment);
     setNewAssignment({

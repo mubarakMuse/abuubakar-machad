@@ -148,7 +148,7 @@ export default function HomePage() {
 
       {/* Hero Section with Institute Branding */}
       <section className="container-mobile mb-8 sm:mb-12">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600 p-8 sm:p-12 text-white">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-red via-primary-700 to-brand-gold p-8 sm:p-12 text-white">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-32 translate-x-32"></div>
@@ -164,11 +164,11 @@ export default function HomePage() {
               </div>
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold mb-1">Abubakar Islamic Institute</h2>
-                <p className="text-primary-100 text-sm sm:text-base">Excellence in Islamic Education</p>
+                <p className="text-white/90 text-sm sm:text-base">Excellence in Islamic Education</p>
               </div>
             </div>
             
-            <p className="text-lg sm:text-xl text-primary-100 mb-6 max-w-2xl">
+            <p className="text-lg sm:text-xl text-white/90 mb-6 max-w-2xl">
               {userData?.role === 'student' 
                 ? 'Access your classes, track your progress, and stay connected with your learning journey.'
                 : 'Manage your classes, engage with students, and foster academic excellence.'
@@ -229,23 +229,23 @@ export default function HomePage() {
                 className="group cursor-pointer animate-slide-up"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <div className="bg-white rounded-3xl p-6 border border-neutral-200 hover:border-primary-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div className="bg-white rounded-3xl p-6 border border-neutral-200 hover:border-primary-300 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shadow-lg">
+                    <div className="w-14 h-14 bg-gradient-to-br from-brand-red to-brand-gold rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shadow-lg">
                       <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                     </div>
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-4 h-4 text-primary-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </div>
                   </div>
                   
-                  <h3 className="text-lg font-bold text-neutral-900 mb-3 group-hover:text-primary-600 transition-colors duration-200">
+                  <h3 className="text-lg font-bold text-neutral-900 mb-3 group-hover:text-primary-700 transition-colors duration-200">
                     {level.name}
                   </h3>
                   
@@ -268,11 +268,11 @@ export default function HomePage() {
                   </div>
                   
                   <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
-                    <span className="text-sm font-medium text-primary-600 group-hover:text-primary-700">
+                    <span className="text-sm font-medium text-brand-red group-hover:text-primary-800">
                       {userData?.role === 'student' ? 'View Class & Grades' : 'View Class'}
                     </span>
                     <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center group-hover:bg-primary-200 transition-colors duration-200">
-                      <svg className="w-3 h-3 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3 h-3 text-brand-red" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
