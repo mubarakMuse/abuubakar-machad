@@ -215,6 +215,32 @@ export default function AttendanceTab({ levelCode }) {
     return attendanceData[key]?.status || '';
   };
 
+  // Calculate attendance statistics for a student
+  const getStudentAttendanceStats = (studentId) => {
+    const studentAttendance = Object.values(attendanceData).filter(record => record.student_id === studentId);
+    
+    const stats = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+      total: studentAttendance.length
+    };
+
+    studentAttendance.forEach(record => {
+      if (record.status) {
+        stats[record.status] = (stats[record.status] || 0) + 1;
+      }
+    });
+
+    // Calculate percentage (present + excused count as full attendance, late counts as 0.5)
+    const weightedScore = stats.present + stats.excused + (stats.late * 0.5);
+    const totalPossible = stats.total;
+    const percentage = totalPossible > 0 ? Math.round((weightedScore / totalPossible) * 100) : 0;
+
+    return { ...stats, percentage };
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -226,7 +252,7 @@ export default function AttendanceTab({ levelCode }) {
           </div>
         </div>
         <p className="text-xs text-gray-600">
-          Student names in first column, attendance days as columns
+          Student names in first column, attendance days as columns, summary with stats in last column
         </p>
       </div>
 
@@ -327,6 +353,11 @@ export default function AttendanceTab({ levelCode }) {
                       </div>
                     </th>
                   ))}
+                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-b border-gray-200 min-w-[100px] sticky right-0 bg-gray-50 z-10">
+                    <div className="flex flex-col items-center">
+                      <span className="text-xs text-gray-500">Summary</span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -388,6 +419,35 @@ export default function AttendanceTab({ levelCode }) {
                         </td>
                       );
                     })}
+                    <td className="px-2 py-2 text-center border-r border-gray-100 sticky right-0 bg-white z-10">
+                      {(() => {
+                        const stats = getStudentAttendanceStats(student.id);
+                        return (
+                          <div className="flex flex-col items-center space-y-1">
+                            <div className="text-xs font-semibold text-gray-900">
+                              {stats.percentage}%
+                            </div>
+                            <div className="flex space-x-1 text-xs">
+                              <span className="text-green-600 font-medium" title="Present">
+                                P:{stats.present}
+                              </span>
+                              <span className="text-blue-600 font-medium" title="Excused">
+                                E:{stats.excused}
+                              </span>
+                              <span className="text-yellow-600 font-medium" title="Late">
+                                L:{stats.late}
+                              </span>
+                              <span className="text-red-600 font-medium" title="Absent">
+                                A:{stats.absent}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {stats.total} days
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
