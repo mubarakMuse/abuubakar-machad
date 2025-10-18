@@ -41,20 +41,37 @@ export default function TeacherDashboard() {
         const { user } = JSON.parse(authData);
         setUserData(user);
 
-        // Check if user is a teacher
-        if (user.role !== 'instructor') {
-          setError('Only teachers can access this page');
+        // Check if user is a teacher or admin
+        if (user.role !== 'instructor' && user.role !== 'admin') {
+          setError('Only teachers and admins can access this page');
           setLoading(false);
           return;
         }
 
         // Check if teacher is assigned to this level and get class data
-        const { data: teacherLevel, error: teacherLevelError } = await supabase
-          .from('levels')
-          .select('*')
-          .eq('code', levelCode)
-          .eq('teacher_id', user.id)
-          .single();
+        // For admin users, skip the teacher_id check
+        let teacherLevel, teacherLevelError;
+        
+        if (user.role === 'admin') {
+          // Admin can access any level
+          const { data, error } = await supabase
+            .from('levels')
+            .select('*')
+            .eq('code', levelCode)
+            .single();
+          teacherLevel = data;
+          teacherLevelError = error;
+        } else {
+          // Regular teacher must be assigned to the level
+          const { data, error } = await supabase
+            .from('levels')
+            .select('*')
+            .eq('code', levelCode)
+            .eq('teacher_id', user.id)
+            .single();
+          teacherLevel = data;
+          teacherLevelError = error;
+        }
 
         if (teacherLevelError || !teacherLevel) {
           setError('You are not authorized to access this level');

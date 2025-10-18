@@ -30,8 +30,8 @@ const BottomNav = ({ userData }) => {
     }
   ];
 
-  // Add teacher-specific navigation
-  if (userData?.role === 'teacher') {
+  // Add teacher-specific navigation for teachers and admins
+  if (userData?.role === 'teacher' || userData?.role === 'admin') {
     navItems.push({
       id: 'teacher',
       label: 'Teacher',

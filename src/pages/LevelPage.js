@@ -31,7 +31,7 @@ export default function LevelPage() {
     if (authData) {
       const { user } = JSON.parse(authData);
       setUserData(user);
-      setIsTeacher(user.role === 'teacher');
+      setIsTeacher(user.role === 'teacher' || user.role === 'admin');
     }
   }, []);
 
@@ -46,7 +46,7 @@ export default function LevelPage() {
     try {
       setLoading(true);
       
-      // If user is a teacher, they have access to all levels
+      // If user is a teacher or admin, they have access to all levels
       if (isTeacher) {
         setIsEnrolled(true);
         await fetchData();
