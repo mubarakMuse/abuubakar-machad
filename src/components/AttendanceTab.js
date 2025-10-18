@@ -353,11 +353,6 @@ export default function AttendanceTab({ levelCode }) {
                       </div>
                     </th>
                   ))}
-                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-b border-gray-200 min-w-[100px] sticky right-0 bg-gray-50 z-10">
-                    <div className="flex flex-col items-center">
-                      <span className="text-xs text-gray-500">Summary</span>
-                    </div>
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -370,6 +365,20 @@ export default function AttendanceTab({ levelCode }) {
                         {student.code && (
                           <div className="text-xs text-gray-400 truncate">{student.code}</div>
                         )}
+                        {(() => {
+                          const stats = getStudentAttendanceStats(student.id);
+                          return (
+                            <div className="mt-1 text-xs">
+                              <div className="font-semibold text-gray-700">{stats.percentage}%</div>
+                              <div className="flex space-x-1">
+                                <span className="text-green-600" title="Present">P:{stats.present}</span>
+                                <span className="text-blue-600" title="Excused">E:{stats.excused}</span>
+                                <span className="text-yellow-600" title="Late">L:{stats.late}</span>
+                                <span className="text-red-600" title="Absent">A:{stats.absent}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
             </div>
                     </td>
                     {attendanceDates.map(date => {
@@ -419,35 +428,6 @@ export default function AttendanceTab({ levelCode }) {
                         </td>
                       );
                     })}
-                    <td className="px-2 py-2 text-center border-r border-gray-100 sticky right-0 bg-white z-10">
-                      {(() => {
-                        const stats = getStudentAttendanceStats(student.id);
-                        return (
-                          <div className="flex flex-col items-center space-y-1">
-                            <div className="text-xs font-semibold text-gray-900">
-                              {stats.percentage}%
-                            </div>
-                            <div className="flex space-x-1 text-xs">
-                              <span className="text-green-600 font-medium" title="Present">
-                                P:{stats.present}
-                              </span>
-                              <span className="text-blue-600 font-medium" title="Excused">
-                                E:{stats.excused}
-                              </span>
-                              <span className="text-yellow-600 font-medium" title="Late">
-                                L:{stats.late}
-                              </span>
-                              <span className="text-red-600 font-medium" title="Absent">
-                                A:{stats.absent}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {stats.total} days
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -10,7 +10,7 @@ import AddStudentModal from '../components/AddStudentModal';
 export default function TeacherDashboard() {
   const { levelCode } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('announcements');
+  const [activeTab, setActiveTab] = useState('summary');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -27,6 +27,7 @@ export default function TeacherDashboard() {
     recentActivity: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
+  const [studentStats, setStudentStats] = useState({});
 
   useEffect(() => {
     const checkTeacherAccess = async () => {
@@ -94,6 +95,9 @@ export default function TeacherDashboard() {
   useEffect(() => {
     if (activeTab === 'students') {
       fetchEnrolledStudents();
+    } else if (activeTab === 'summary') {
+      fetchEnrolledStudents();
+      fetchStudentStats();
     }
   }, [activeTab, levelCode]);
 
@@ -178,6 +182,79 @@ export default function TeacherDashboard() {
       setEnrolledStudents(data.map(item => item.student));
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const fetchStudentStats = async () => {
+    try {
+      const stats = {};
+      
+      // Fetch grades for all students
+      const { data: grades, error: gradesError } = await supabase
+        .from('grades')
+        .select(`
+          *,
+          assignment:assignments!inner(*),
+          student:users(name)
+        `)
+        .eq('assignment.level_code', levelCode);
+
+      if (gradesError) throw gradesError;
+
+      // Fetch attendance for all students
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('level_code', levelCode);
+
+      if (attendanceError) throw attendanceError;
+
+      // Sort students alphabetically by name
+      const sortedStudents = [...enrolledStudents].sort((a, b) => a.name.localeCompare(b.name));
+      
+      // Calculate stats for each student
+      sortedStudents.forEach(student => {
+        const studentGrades = grades.filter(grade => grade.student_id === student.id);
+        const studentAttendance = attendance.filter(record => record.student_id === student.id);
+        
+        // Calculate grade stats
+        const totalScore = studentGrades.reduce((sum, grade) => sum + (grade.score || 0), 0);
+        const maxPossible = studentGrades.reduce((sum, grade) => sum + (grade.assignment?.max_score || 0), 0);
+        const gradePercentage = maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0;
+        
+        // Calculate attendance stats
+        const attendanceStats = {
+          present: 0,
+          absent: 0,
+          late: 0,
+          excused: 0,
+          total: studentAttendance.length
+        };
+        
+        studentAttendance.forEach(record => {
+          if (record.status) {
+            attendanceStats[record.status] = (attendanceStats[record.status] || 0) + 1;
+          }
+        });
+        
+        // Calculate weighted attendance percentage (excused counts as 1 point like present)
+        const weightedScore = attendanceStats.present + attendanceStats.excused + (attendanceStats.late * 0.5);
+        const attendancePercentage = attendanceStats.total > 0 ? Math.round((weightedScore / attendanceStats.total) * 100) : 0;
+        
+        stats[student.id] = {
+          name: student.name,
+          username: student.username,
+          gradePercentage,
+          totalScore,
+          maxPossible,
+          attendancePercentage,
+          attendanceStats
+        };
+      });
+      
+      setStudentStats(stats);
+    } catch (err) {
+      console.error('Error fetching student stats:', err);
     }
   };
 
@@ -326,7 +403,7 @@ export default function TeacherDashboard() {
                   </td>
                 </tr>
               ) : (
-                enrolledStudents.map((student) => (
+                [...enrolledStudents].sort((a, b) => a.name.localeCompare(b.name)).map((student) => (
                   <tr key={student.id} className="hover:bg-neutral-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
@@ -423,7 +500,172 @@ export default function TeacherDashboard() {
     </div>
   );
 
+  const renderSummaryTab = () => {
+    const studentStatsArray = Object.values(studentStats).sort((a, b) => a.name.localeCompare(b.name));
+    
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-neutral-900 mb-2">Student Summary</h2>
+          <p className="text-neutral-600">Quick overview of all students' performance and attendance</p>
+        </div>
+
+        {/* Class Overview Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-blue-900">{enrolledStudents.length}</div>
+                <div className="text-sm text-blue-700">Total Students</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 border border-green-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-900">
+                  {studentStatsArray.length > 0 ? Math.round(studentStatsArray.reduce((sum, s) => sum + s.gradePercentage, 0) / studentStatsArray.length) : 0}%
+                </div>
+                <div className="text-sm text-green-700">Avg Grade</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl p-6 border border-yellow-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-yellow-900">
+                  {studentStatsArray.length > 0 ? Math.round(studentStatsArray.reduce((sum, s) => sum + s.attendancePercentage, 0) / studentStatsArray.length) : 0}%
+                </div>
+                <div className="text-sm text-yellow-700">Avg Attendance</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Student Stats Table */}
+        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50">
+            <h3 className="text-lg font-semibold text-neutral-900">Student Performance Overview</h3>
+            <p className="text-sm text-neutral-600 mt-1">Individual student statistics and progress</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-neutral-50 border-b border-neutral-200">
+                <tr>
+                  <th className="text-left py-4 px-6 font-semibold text-neutral-700">Student</th>
+                  <th className="text-center py-4 px-4 font-semibold text-neutral-700">Grade Average</th>
+                  <th className="text-center py-4 px-4 font-semibold text-neutral-700">Attendance</th>
+                  <th className="text-center py-4 px-4 font-semibold text-neutral-700">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {studentStatsArray.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-12 text-neutral-500">
+                      <div className="flex flex-col items-center gap-3">
+                        <svg className="w-12 h-12 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                        <p>No student data available</p>
+                        <p className="text-sm">Student statistics will appear here once data is loaded</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  studentStatsArray.map((student, index) => {
+                    const getStatusColor = (gradePercentage, attendancePercentage) => {
+                      if (gradePercentage >= 80 && attendancePercentage >= 80) return 'text-green-600 bg-green-50';
+                      if (gradePercentage >= 60 && attendancePercentage >= 60) return 'text-yellow-600 bg-yellow-50';
+                      return 'text-red-600 bg-red-50';
+                    };
+
+                    const getStatusText = (gradePercentage, attendancePercentage) => {
+                      if (gradePercentage >= 80 && attendancePercentage >= 80) return 'Excellent';
+                      if (gradePercentage >= 60 && attendancePercentage >= 60) return 'Good';
+                      return 'Needs Attention';
+                    };
+
+                    return (
+                      <tr key={index} className="hover:bg-neutral-50 transition-colors duration-150">
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center shadow-sm">
+                              <span className="text-white font-bold text-sm">
+                                {student.name?.charAt(0)}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-neutral-900">{student.name}</div>
+                              <div className="text-sm text-neutral-500">@{student.username}</div>
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                            student.gradePercentage >= 80 ? 'text-green-700 bg-green-100' :
+                            student.gradePercentage >= 60 ? 'text-yellow-700 bg-yellow-100' :
+                            'text-red-700 bg-red-100'
+                          }`}>
+                            <span>{student.gradePercentage}%</span>
+                            <span className="text-xs opacity-75">({student.totalScore}/{student.maxPossible})</span>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                            student.attendancePercentage >= 80 ? 'text-green-700 bg-green-100' :
+                            student.attendancePercentage >= 60 ? 'text-yellow-700 bg-yellow-100' :
+                            'text-red-700 bg-red-100'
+                          }`}>
+                            <span>{student.attendancePercentage}%</span>
+                            <div className="flex gap-1 text-xs">
+                              <span className="text-green-600">P:{student.attendanceStats.present}</span>
+                              <span className="text-blue-600">E:{student.attendanceStats.excused}</span>
+                              <span className="text-yellow-600">L:{student.attendanceStats.late}</span>
+                              <span className="text-red-600">A:{student.attendanceStats.absent}</span>
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="py-4 px-4 text-center">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(student.gradePercentage, student.attendancePercentage)}`}>
+                            {getStatusText(student.gradePercentage, student.attendancePercentage)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const tabs = [
+    { id: 'summary', label: 'Summary', icon: '📈' },
     { id: 'announcements', label: 'Updates', icon: '📢' },
     { id: 'assignments', label: 'Assignments', icon: '📝' },
     { id: 'grades', label: 'Grades', icon: '📊' },
@@ -481,6 +723,7 @@ export default function TeacherDashboard() {
       {/* Main Content */}
       <main className="container-mobile py-6">
         <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8">
+          {activeTab === 'summary' && renderSummaryTab()}
           {activeTab === 'announcements' && <AnnouncementsTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'assignments' && <AssignmentsTab levelCode={levelCode} teacherId={userData.id} />}
           {activeTab === 'grades' && <GradesTab levelCode={levelCode} teacherId={userData.id} />}
