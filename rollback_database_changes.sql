@@ -6,3 +6,5 @@ DROP INDEX IF EXISTS idx_assignments_order_index;
 
 -- Drop the order_index column
 ALTER TABLE assignments DROP COLUMN IF EXISTS order_index;
+
+

@@ -6,7 +6,7 @@ export default function GradesTab({ levelCode }) {
   const [error, setError] = useState(null);
   const [editingGrade, setEditingGrade] = useState(null);
   const [showAddGradeModal, setShowAddGradeModal] = useState(false);
-  const [viewMode, setViewMode] = useState('assignment'); // 'assignment' or 'student'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' view only
   const [newGrade, setNewGrade] = useState({
     student_id: '',
     assignment_id: '',
@@ -55,7 +55,11 @@ export default function GradesTab({ levelCode }) {
         .eq('level_code', levelCode);
 
       if (error) throw error;
-      setStudents(data?.map(item => item.student) || []);
+      // Sort students alphabetically by name
+      const sortedStudents = (data?.map(item => item.student) || []).sort((a, b) => 
+        a.name.localeCompare(b.name)
+      );
+      setStudents(sortedStudents);
     } catch (err) {
       setError(err.message);
     }
@@ -155,6 +159,49 @@ export default function GradesTab({ levelCode }) {
     return { totalScore, maxPossible, percentage };
   };
 
+  // Get grade for a specific student-assignment combination
+  const getGradeForStudentAssignment = (studentId, assignmentId) => {
+    return grades.find(grade => 
+      grade.student_id === studentId && grade.assignment_id === assignmentId
+    );
+  };
+
+  // Handle grade update in grid
+  const handleGridGradeUpdate = async (studentId, assignmentId, newScore) => {
+    try {
+      const existingGrade = getGradeForStudentAssignment(studentId, assignmentId);
+      
+      if (existingGrade) {
+        // Update existing grade
+        const { error } = await supabase
+          .from('grades')
+          .update({
+            score: parseFloat(newScore),
+            graded_at: new Date().toISOString()
+          })
+          .eq('id', existingGrade.id);
+
+        if (error) throw error;
+      } else {
+        // Create new grade
+        const { error } = await supabase
+          .from('grades')
+          .insert([{
+            student_id: studentId,
+            assignment_id: assignmentId,
+            score: parseFloat(newScore),
+            graded_at: new Date().toISOString()
+          }]);
+
+        if (error) throw error;
+      }
+      
+      await fetchGrades();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   // New function to calculate letter grade
   const calculateLetterGrade = (percentage) => {
     if (percentage >= 93) return 'A';
@@ -176,6 +223,238 @@ export default function GradesTab({ levelCode }) {
     if (!score || !maxScore) return '-';
     const percentage = (score / maxScore) * 100;
     return calculateLetterGrade(percentage);
+  };
+
+  // Render grid view with students as rows and assignments as columns
+  const renderGridView = () => {
+    if (assignments.length === 0) {
+      return (
+        <div className="card p-8 text-center">
+          <div className="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-neutral-900 mb-2">No assignments yet</h3>
+          <p className="text-neutral-500">Create assignments to start grading students.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="card p-0 overflow-hidden">
+        <div className="p-4 border-b border-neutral-200 bg-neutral-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900">Grade Grid</h3>
+              <p className="text-sm text-neutral-600">Click any cell to edit grades</p>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-neutral-600">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
+                <span>90%+</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></div>
+                <span>70-89%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+                <span>&lt;70%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-neutral-200 bg-white">
+                <th className="text-left py-4 px-4 font-semibold text-neutral-700 sticky left-0 bg-white z-20 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                    Student
+                  </div>
+                </th>
+                {assignments.map((assignment) => (
+                  <th key={assignment.id} className="text-center py-4 px-3 font-semibold text-neutral-700 min-w-[140px] bg-neutral-50">
+                    <div className="flex flex-col items-center space-y-1">
+                      <div className="text-xs text-neutral-500 font-medium">
+                        {new Date(assignment.due_date).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </div>
+                      <div className="text-sm font-semibold text-neutral-900 truncate max-w-[120px]" title={assignment.title}>
+                        {assignment.title}
+                      </div>
+                      <div className="text-xs text-neutral-400 bg-neutral-200 px-2 py-1 rounded-full">
+                        /{assignment.max_score}
+                      </div>
+                    </div>
+                  </th>
+                ))}
+                <th className="text-center py-4 px-4 font-semibold text-neutral-700 min-w-[120px] sticky right-0 bg-white z-20 shadow-sm">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Total
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => {
+                const studentGrades = grades.filter(grade => grade.student_id === student.id);
+                const { totalScore, maxPossible, percentage } = calculateFinalGrade(studentGrades);
+                
+                return (
+                  <tr key={student.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors duration-150">
+                    <td className="py-4 px-4 sticky left-0 bg-white z-10 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center shadow-sm">
+                          <span className="text-white font-bold text-sm">
+                            {student.name?.charAt(0)}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-neutral-900 truncate">{student.name}</div>
+                          <div className="text-xs text-neutral-500">
+                            {totalScore}/{maxPossible} points
+                          </div>
+                          <div className={`text-xs font-medium ${
+                            percentage >= 90 ? 'text-green-600' :
+                            percentage >= 70 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {percentage}% average
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    {assignments.map((assignment) => {
+                      const grade = getGradeForStudentAssignment(student.id, assignment.id);
+                      const isEditing = editingGrade === `${student.id}-${assignment.id}`;
+                      
+                      const gradePercentage = grade ? Math.round((grade.score / assignment.max_score) * 100) : 0;
+                      const gradeColor = gradePercentage >= 90 ? 'bg-green-50 border-green-200 text-green-800' :
+                                        gradePercentage >= 70 ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                                        gradePercentage > 0 ? 'bg-red-50 border-red-200 text-red-800' :
+                                        'bg-neutral-50 border-neutral-200 text-neutral-500';
+                      
+                      return (
+                        <td key={assignment.id} className="py-3 px-2 text-center">
+                          {isEditing ? (
+                            <div className="relative">
+                              <input
+                                type="number"
+                                defaultValue={grade?.score || ''}
+                                className="w-20 input text-center text-sm font-semibold border-2 border-primary-500 focus:ring-2 focus:ring-primary-200"
+                                placeholder="0"
+                                min="0"
+                                max={assignment.max_score}
+                                onBlur={(e) => {
+                                  if (e.target.value !== '') {
+                                    handleGridGradeUpdate(student.id, assignment.id, e.target.value);
+                                  }
+                                  setEditingGrade(null);
+                                }}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    if (e.target.value !== '') {
+                                      handleGridGradeUpdate(student.id, assignment.id, e.target.value);
+                                    }
+                                    setEditingGrade(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingGrade(null);
+                                  }
+                                }}
+                                autoFocus
+                              />
+                              <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-neutral-500 whitespace-nowrap">
+                                /{assignment.max_score}
+                              </div>
+                            </div>
+                          ) : (
+                            <div 
+                              className={`cursor-pointer hover:scale-105 transition-all duration-150 rounded-lg border-2 px-3 py-2 min-h-[50px] flex flex-col items-center justify-center ${gradeColor} hover:shadow-sm`}
+                              onClick={() => setEditingGrade(`${student.id}-${assignment.id}`)}
+                              title={`Click to edit grade for ${student.name} - ${assignment.title}`}
+                            >
+                              {grade ? (
+                                <div className="text-center">
+                                  <div className="font-bold text-lg">{grade.score}</div>
+                                  <div className="text-xs font-medium opacity-75">
+                                    {gradePercentage}%
+                                  </div>
+                                  <div className="text-xs opacity-60">
+                                    /{assignment.max_score}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center">
+                                  <div className="text-lg font-medium opacity-50">-</div>
+                                  <div className="text-xs opacity-40">Click to add</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="py-4 px-4 text-center sticky right-0 bg-white z-10 shadow-sm">
+                      <div className={`inline-flex flex-col items-center p-3 rounded-xl border-2 ${
+                        percentage >= 90 ? 'bg-green-50 border-green-200' :
+                        percentage >= 70 ? 'bg-yellow-50 border-yellow-200' :
+                        'bg-red-50 border-red-200'
+                      }`}>
+                        <div className="font-bold text-lg text-neutral-900">{totalScore}</div>
+                        <div className="text-xs text-neutral-500">/{maxPossible}</div>
+                        <div className={`text-sm font-semibold ${
+                          percentage >= 90 ? 'text-green-700' :
+                          percentage >= 70 ? 'text-yellow-700' :
+                          'text-red-700'
+                        }`}>
+                          {Math.round(percentage)}%
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Footer with Statistics */}
+        <div className="p-4 border-t border-neutral-200 bg-neutral-50">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-600">Students:</span>
+                <span className="font-semibold text-neutral-900">{students.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-600">Assignments:</span>
+                <span className="font-semibold text-neutral-900">{assignments.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-600">Grades Entered:</span>
+                <span className="font-semibold text-neutral-900">{grades.length}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-neutral-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Click any cell to edit grades</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderAssignmentView = () => {
@@ -487,27 +766,13 @@ export default function GradesTab({ levelCode }) {
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="flex items-center space-x-1 bg-neutral-100 p-1 rounded-xl">
-            <button
-              onClick={() => setViewMode('assignment')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === 'assignment'
-                  ? 'bg-white text-primary-600 shadow-soft'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              By Assignment
-            </button>
-            <button
-              onClick={() => setViewMode('student')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === 'student'
-                  ? 'bg-white text-primary-600 shadow-soft'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              By Student
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-neutral-600 bg-neutral-100 px-3 py-1 rounded-full">
+              Interactive Grid View
+            </div>
+            <div className="text-xs text-neutral-500">
+              {students.length} students × {assignments.length} assignments
+            </div>
           </div>
           
           <button
@@ -535,7 +800,7 @@ export default function GradesTab({ levelCode }) {
 
      
 
-      {viewMode === 'assignment' ? renderAssignmentView() : renderStudentView()}
+      {renderGridView()}
 
       {/* Add Grade Modal */}
       {showAddGradeModal && (
