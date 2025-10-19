@@ -585,7 +585,7 @@ export default function AssignmentsTab({ levelCode, teacherId }) {
 
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <form onSubmit={handleBulkGradeSubmit} className="space-y-4">
-                {enrolledStudents.map((student) => (
+                {[...enrolledStudents].sort((a, b) => a.name.localeCompare(b.name)).map((student) => (
                   <div key={student.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-2xl">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
