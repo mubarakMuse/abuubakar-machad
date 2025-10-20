@@ -6,8 +6,11 @@ export default function StudentReportCard({ student }) {
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [grades, setGrades] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [allGradesByLevel, setAllGradesByLevel] = useState({});
+  const [allAttendanceByLevel, setAllAttendanceByLevel] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'details'
 
   useEffect(() => {
     if (student) {
@@ -35,9 +38,11 @@ export default function StudentReportCard({ student }) {
 
       setEnrollments(enrollmentData || []);
 
-      // If there are enrollments, select the most recent one by default
+      // If there are enrollments, fetch all grades and attendance for all levels
       if (enrollmentData && enrollmentData.length > 0) {
+        // Set the latest level as default (first in the sorted array)
         setSelectedLevel(enrollmentData[0]);
+        await fetchAllLevelData(enrollmentData);
       }
     } catch (err) {
       setError(err.message);
@@ -46,17 +51,11 @@ export default function StudentReportCard({ student }) {
     }
   };
 
-  useEffect(() => {
-    if (selectedLevel && student) {
-      fetchLevelData();
-    }
-  }, [selectedLevel, student]);
-
-  const fetchLevelData = async () => {
+  const fetchAllLevelData = async (enrollments) => {
     try {
-      setLoading(true);
-
-      // Fetch grades for the selected level
+      const levelCodes = enrollments.map(e => e.level_code);
+      
+      // Fetch all grades for all levels
       const { data: gradesData, error: gradesError } = await supabase
         .from('grades')
         .select(`
@@ -76,29 +75,72 @@ export default function StudentReportCard({ student }) {
           )
         `)
         .eq('student_id', student.id)
-        .eq('assignment.level_code', selectedLevel.level_code)
+        .in('assignment.level_code', levelCodes)
         .order('graded_at', { ascending: false });
 
       if (gradesError) throw gradesError;
 
-      setGrades(gradesData || []);
+      // Group grades by level
+      const gradesByLevel = {};
+      gradesData?.forEach(grade => {
+        const levelCode = grade.assignment?.level_code;
+        if (levelCode) {
+          if (!gradesByLevel[levelCode]) {
+            gradesByLevel[levelCode] = [];
+          }
+          gradesByLevel[levelCode].push(grade);
+        }
+      });
+      setAllGradesByLevel(gradesByLevel);
 
-      // Fetch attendance for the selected level
+      // Fetch all attendance for all levels
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance')
         .select('*')
         .eq('student_id', student.id)
-        .eq('level_code', selectedLevel.level_code)
+        .in('level_code', levelCodes)
         .order('date', { ascending: false });
 
       if (attendanceError) throw attendanceError;
 
-      setAttendance(attendanceData || []);
+      // Group attendance by level
+      const attendanceByLevel = {};
+      attendanceData?.forEach(record => {
+        const levelCode = record.level_code;
+        if (!attendanceByLevel[levelCode]) {
+          attendanceByLevel[levelCode] = [];
+        }
+        attendanceByLevel[levelCode].push(record);
+      });
+      setAllAttendanceByLevel(attendanceByLevel);
+
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  // Helper function to calculate total points for a specific level
+  const calculateLevelPoints = (levelGrades) => {
+    if (!levelGrades || levelGrades.length === 0) return { earned: 0, possible: 0 };
+
+    const totals = levelGrades.reduce((acc, grade) => {
+      const earned = grade.score || 0;
+      const possible = grade.assignment?.max_score || 0;
+      return {
+        earned: acc.earned + earned,
+        possible: acc.possible + possible
+      };
+    }, { earned: 0, possible: 0 });
+
+    return totals;
+  };
+
+  // Helper function to calculate attendance percentage for a specific level
+  const calculateLevelAttendancePercentage = (levelAttendance) => {
+    if (!levelAttendance || levelAttendance.length === 0) return null;
+
+    const presentCount = levelAttendance.filter(record => record.status === 'present').length;
+    return ((presentCount / levelAttendance.length) * 100).toFixed(1);
   };
 
   const calculateLetterGrade = (percentage) => {
@@ -116,25 +158,6 @@ export default function StudentReportCard({ student }) {
     return 'F';
   };
 
-  const calculateOverallAverage = () => {
-    if (grades.length === 0) return null;
-
-    const totalPercentage = grades.reduce((sum, grade) => {
-      const percentage = grade.assignment?.max_score > 0 
-        ? (grade.score / grade.assignment.max_score) * 100 
-        : 0;
-      return sum + percentage;
-    }, 0);
-
-    return (totalPercentage / grades.length).toFixed(1);
-  };
-
-  const calculateAttendancePercentage = () => {
-    if (attendance.length === 0) return null;
-
-    const presentCount = attendance.filter(record => record.status === 'present').length;
-    return ((presentCount / attendance.length) * 100).toFixed(1);
-  };
 
   if (loading) {
     return (
@@ -152,200 +175,234 @@ export default function StudentReportCard({ student }) {
     );
   }
 
-  const overallAverage = calculateOverallAverage();
-  const attendancePercentage = calculateAttendancePercentage();
+  // Calculate overall statistics across all levels
+  const allGrades = Object.values(allGradesByLevel).flat();
+  const allAttendance = Object.values(allAttendanceByLevel).flat();
+  const overallPoints = allGrades.length > 0 ? calculateLevelPoints(allGrades) : { earned: 0, possible: 0 };
+  const attendancePercentage = allAttendance.length > 0 ? calculateLevelAttendancePercentage(allAttendance) : null;
 
   return (
-    <div className="space-y-6">
-      {/* Student Information */}
-      <div className="bg-gray-50 rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Student Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Name</p>
-            <p className="text-lg text-gray-900">{student.name}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Student ID</p>
-            <p className="text-lg text-gray-900">{student.code || 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Email</p>
-            <p className="text-lg text-gray-900">{student.email || 'N/A'}</p>
-          </div>
-          {student.date_of_birth && (
-            <div>
-              <p className="text-sm font-medium text-gray-500">Date of Birth</p>
-              <p className="text-lg text-gray-900">
-                {new Date(student.date_of_birth).toLocaleDateString()}
-              </p>
-            </div>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="px-4 py-6">
+          <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
+          <p className="text-gray-600 mt-1">Student Report Card</p>
         </div>
       </div>
 
-      {/* Level Selection */}
-      {enrollments.length > 0 && (
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Class</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {enrollments.map((enrollment) => (
-              <button
-                key={enrollment.level_code}
-                onClick={() => setSelectedLevel(enrollment)}
-                className={`p-4 border rounded-lg text-left transition-colors ${
-                  selectedLevel?.level_code === enrollment.level_code
-                    ? 'border-indigo-500 bg-indigo-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <h4 className="font-medium text-gray-900">
-                  {enrollment.level?.name || enrollment.level_code}
-                </h4>
-                <p className="text-sm text-gray-600">
-                  Enrolled: {new Date(enrollment.enrolled_at).toLocaleDateString()}
-                </p>
-              </button>
-            ))}
-          </div>
+      {/* Mobile Tabs */}
+      <div className="bg-white border-b">
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab('summary')}
+            className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 ${
+              activeTab === 'summary'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Summary
+          </button>
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 ${
+              activeTab === 'details'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Details
+          </button>
         </div>
-      )}
+      </div>
 
-      {selectedLevel && (
-        <>
-          {/* Overall Performance Summary */}
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Summary</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-indigo-600">
-                  {overallAverage ? `${overallAverage}%` : 'N/A'}
-                </div>
-                <div className="text-sm text-gray-600">Overall Average</div>
-                {overallAverage && (
-                  <div className="text-sm font-medium text-gray-900">
-                    Grade: {calculateLetterGrade(parseFloat(overallAverage))}
-                  </div>
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">
-                  {attendancePercentage ? `${attendancePercentage}%` : 'N/A'}
-                </div>
-                <div className="text-sm text-gray-600">Attendance</div>
-                <div className="text-sm text-gray-900">
-                  {attendance.length} class{attendance.length !== 1 ? 'es' : ''} recorded
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">
-                  {grades.length}
-                </div>
-                <div className="text-sm text-gray-600">Assignments</div>
-                <div className="text-sm text-gray-900">Graded</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Grades */}
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Assignment Grades</h3>
-            {grades.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assignment
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Score
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Grade
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {grades.map((grade) => {
-                      const percentage = grade.assignment?.max_score > 0 
-                        ? (grade.score / grade.assignment.max_score) * 100 
-                        : 0;
-                      const letterGrade = calculateLetterGrade(percentage);
+      <div className="p-4">
+        {activeTab === 'summary' ? (
+          /* Quick Summary View */
+          <div className="space-y-4">
+            {enrollments.length > 0 ? (
+              enrollments.map((enrollment) => {
+                const levelGrades = allGradesByLevel[enrollment.level_code] || [];
+                const levelAttendance = allAttendanceByLevel[enrollment.level_code] || [];
+                const levelPoints = calculateLevelPoints(levelGrades);
+                const levelAttendancePercentage = calculateLevelAttendancePercentage(levelAttendance);
+                
+                return (
+                  <div
+                    key={enrollment.level_code}
+                    className="bg-white rounded-lg shadow-sm border p-4"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {enrollment.level?.name || enrollment.level_code}
+                      </h3>
+                      <button
+                        onClick={() => {
+                          setSelectedLevel(enrollment);
+                          setActiveTab('details');
+                        }}
+                        className="text-indigo-600 text-sm font-medium"
+                      >
+                        View Details →
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-3 bg-gray-50 rounded-lg">
+                        <div className="text-2xl font-bold text-indigo-600">
+                          {levelPoints.possible > 0 ? (() => {
+                            const percentage = (levelPoints.earned / levelPoints.possible) * 100;
+                            return calculateLetterGrade(percentage);
+                          })() : 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-600">Grade</div>
+                        {levelPoints.possible > 0 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {((levelPoints.earned / levelPoints.possible) * 100).toFixed(1)}%
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-400 mt-1">
+                          {levelPoints.possible > 0 ? `${levelPoints.earned}/${levelPoints.possible} pts` : 'No points'}
+                        </div>
+                      </div>
                       
-                      return (
-                        <tr key={grade.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {grade.assignment?.title || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {grade.assignment?.category?.name || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {grade.score} / {grade.assignment?.max_score || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              percentage >= 90 ? 'bg-green-100 text-green-800' :
-                              percentage >= 80 ? 'bg-blue-100 text-blue-800' :
-                              percentage >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {letterGrade} ({percentage.toFixed(1)}%)
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(grade.graded_at).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      <div className="text-center p-3 bg-gray-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">
+                          {levelAttendancePercentage ? `${levelAttendancePercentage}%` : 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-600">Attendance</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {levelAttendance.length} classes
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
-              <p className="text-gray-500 text-center py-8">No grades available for this class.</p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <p className="text-yellow-700">No class enrollments found for this student.</p>
+              </div>
             )}
           </div>
+        ) : (
+          /* Detailed View for Selected Level */
+          selectedLevel ? (
+            <div className="space-y-6">
+              {/* Level Header */}
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {selectedLevel.level?.name || selectedLevel.level_code}
+                  </h2>
+                  <button
+                    onClick={() => setActiveTab('summary')}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ← Back to Summary
+                  </button>
+                </div>
+                
+                {/* Quick Stats */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                    <div className="text-xl font-bold text-indigo-600">
+                      {(() => {
+                        const points = calculateLevelPoints(allGradesByLevel[selectedLevel.level_code] || []);
+                        if (points.possible > 0) {
+                          const percentage = (points.earned / points.possible) * 100;
+                          return calculateLetterGrade(percentage);
+                        }
+                        return 'N/A';
+                      })()}
+                    </div>
+                    <div className="text-sm text-indigo-600">Grade</div>
+                    {(() => {
+                      const points = calculateLevelPoints(allGradesByLevel[selectedLevel.level_code] || []);
+                      return points.possible > 0 ? (
+                        <div className="text-xs text-indigo-500 mt-1">
+                          {((points.earned / points.possible) * 100).toFixed(1)}%
+                        </div>
+                      ) : null;
+                    })()}
+                    <div className="text-xs text-indigo-400 mt-1">
+                      {(() => {
+                        const points = calculateLevelPoints(allGradesByLevel[selectedLevel.level_code] || []);
+                        return points.possible > 0 ? `${points.earned}/${points.possible} pts` : 'No points';
+                      })()}
+                    </div>
+                  </div>
+                  
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-xl font-bold text-green-600">
+                      {calculateLevelAttendancePercentage(allAttendanceByLevel[selectedLevel.level_code] || []) || 'N/A'}%
+                    </div>
+                    <div className="text-sm text-green-600">Attendance</div>
+                  </div>
+                </div>
+              </div>
 
-          {/* Attendance */}
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance Record</h3>
-            {attendance.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Notes
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {attendance.map((record) => (
-                      <tr key={record.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(record.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+              {/* Grades Section */}
+              <div className="bg-white rounded-lg shadow-sm border">
+                <div className="p-4 border-b">
+                  <h3 className="text-lg font-semibold text-gray-900">Grades</h3>
+                </div>
+                <div className="p-4">
+                  {allGradesByLevel[selectedLevel.level_code]?.length > 0 ? (
+                    <div className="space-y-3">
+                      {allGradesByLevel[selectedLevel.level_code].map((grade) => {
+                        const percentage = grade.assignment?.max_score > 0 
+                          ? (grade.score / grade.assignment.max_score) * 100 
+                          : 0;
+                        const letterGrade = calculateLetterGrade(percentage);
+                        
+                        return (
+                          <div key={grade.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                {grade.assignment?.title || 'N/A'}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {grade.score} / {grade.assignment?.max_score || 'N/A'}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                percentage >= 90 ? 'bg-green-100 text-green-800' :
+                                percentage >= 80 ? 'bg-blue-100 text-blue-800' :
+                                percentage >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {letterGrade} ({percentage.toFixed(1)}%)
+                              </span>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {new Date(grade.graded_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No grades available for this class.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Attendance Section */}
+              <div className="bg-white rounded-lg shadow-sm border">
+                <div className="p-4 border-b">
+                  <h3 className="text-lg font-semibold text-gray-900">Attendance</h3>
+                </div>
+                <div className="p-4">
+                  {allAttendanceByLevel[selectedLevel.level_code]?.length > 0 ? (
+                    <div className="space-y-2">
+                      {allAttendanceByLevel[selectedLevel.level_code].map((record) => (
+                        <div key={record.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="text-sm font-medium text-gray-900">
+                            {new Date(record.date).toLocaleDateString()}
+                          </div>
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             record.status === 'present' 
                               ? 'bg-green-100 text-green-800'
@@ -355,27 +412,22 @@ export default function StudentReportCard({ student }) {
                           }`}>
                             {record.status?.charAt(0).toUpperCase() + record.status?.slice(1) || 'N/A'}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {record.notes || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No attendance records available for this class.</p>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No attendance records available for this class.</p>
-            )}
-          </div>
-        </>
-      )}
-
-      {enrollments.length === 0 && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
-          <p className="text-yellow-700">No class enrollments found for this student.</p>
-        </div>
-      )}
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+              <p className="text-yellow-700">Please select a class from the summary view.</p>
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }

@@ -35,7 +35,7 @@ export default function ParentLookup() {
     setSelectedStudent(null);
 
     try {
-      // Search for students by phone number using only digits
+      // Search for students by parent phone numbers using only digits
       const { data, error } = await supabase
         .from('users')
         .select(`
@@ -44,18 +44,18 @@ export default function ParentLookup() {
           username,
           email,
           code,
-          phone_number,
-          date_of_birth
+          parent1_number,
+          parent2_number
         `)
         .eq('role', 'student')
-        .ilike('phone_number', `%${digitsOnly}%`);
+        .or(`parent1_number.ilike.%${digitsOnly}%,parent2_number.ilike.%${digitsOnly}%`);
 
       if (error) throw error;
 
       if (data && data.length > 0) {
         setStudents(data);
       } else {
-        setError('No students found with that phone number');
+        setError('No students found with that parent phone number');
       }
     } catch (err) {
       setError(err.message);
@@ -156,13 +156,6 @@ export default function ParentLookup() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-lg font-medium text-gray-900">{student.name}</h3>
-                        <p className="text-gray-600">Student ID: {student.code || 'N/A'}</p>
-                        <p className="text-gray-600">Email: {student.email || 'N/A'}</p>
-                        {student.date_of_birth && (
-                          <p className="text-gray-600">
-                            Date of Birth: {new Date(student.date_of_birth).toLocaleDateString()}
-                          </p>
-                        )}
                       </div>
                       <div className="text-indigo-600 font-medium">
                         View Report Card →

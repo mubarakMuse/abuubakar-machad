@@ -6,6 +6,7 @@ import GradesTab from '../components/GradesTab';
 import AssignmentsTab from '../components/AssignmentsTab';
 import AttendanceTab from '../components/AttendanceTab';
 import AddStudentModal from '../components/AddStudentModal';
+import EditStudentModal from '../components/EditStudentModal';
 
 export default function TeacherDashboard() {
   const { levelCode } = useParams();
@@ -19,6 +20,7 @@ export default function TeacherDashboard() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalAssignments: 0,
@@ -172,6 +174,9 @@ export default function TeacherDashboard() {
             username,
             role,
             code,
+            phone_number,
+            parent1_number,
+            parent2_number,
             created_at,
             updated_at
           )
@@ -258,23 +263,6 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleStudentUpdate = async (studentId, updatedData) => {
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update(updatedData)
-        .eq('id', studentId);
-
-      if (error) throw error;
-      await fetchEnrolledStudents();
-      setEditingStudent(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleStudentAdded = () => {
     fetchEnrolledStudents();
@@ -414,60 +402,24 @@ export default function TeacherDashboard() {
                         </div>
                         <div>
                           <div className="text-sm font-medium text-neutral-900">
-                            {editingStudent === student.id ? (
-                              <input
-                                type="text"
-                                defaultValue={student.name}
-                                className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                                onBlur={(e) => handleStudentUpdate(student.id, { ...student, name: e.target.value })}
-                              />
-                            ) : (
-                              student.name
-                            )}
+                            {student.name}
                           </div>
                           <div className="text-sm text-neutral-500">
-                            {editingStudent === student.id ? (
-                              <input
-                                type="text"
-                                defaultValue={student.username}
-                                className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                                onBlur={(e) => handleStudentUpdate(student.id, { ...student, username: e.target.value })}
-                              />
-                            ) : (
-                              student.username
-                            )}
+                            {student.username}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-neutral-500">
-                        {editingStudent === student.id ? (
-                          <input
-                            type="email"
-                            defaultValue={student.email}
-                            className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                            onBlur={(e) => handleStudentUpdate(student.id, { ...student, email: e.target.value })}
-                          />
-                        ) : (
-                          student.email
-                        )}
+                        {student.email}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-neutral-500">
-                        {editingStudent === student.id ? (
-                          <input
-                            type="text"
-                            defaultValue={student.code}
-                            className="w-full border border-neutral-300 rounded-lg px-3 py-1 text-sm"
-                            onBlur={(e) => handleStudentUpdate(student.id, { ...student, code: e.target.value })}
-                          />
-                        ) : (
-                          <span className="bg-neutral-100 text-neutral-700 px-2 py-1 rounded-lg text-xs font-medium">
-                            {student.code}
-                          </span>
-                        )}
+                        <span className="bg-neutral-100 text-neutral-700 px-2 py-1 rounded-lg text-xs font-medium">
+                          {student.code}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
@@ -476,11 +428,13 @@ export default function TeacherDashboard() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setEditingStudent(editingStudent === student.id ? null : student.id)}
+                          onClick={() => {
+                            setEditingStudent(student);
+                            setShowEditStudentModal(true);
+                          }}
                           className="text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
-                          disabled={isSubmitting}
                         >
-                          {editingStudent === student.id ? 'Save' : 'Edit'}
+                          Edit
                         </button>
                         <button
                           onClick={() => handleRemoveStudent(student.id)}
@@ -738,6 +692,17 @@ export default function TeacherDashboard() {
         onClose={() => setShowAddStudentModal(false)}
         levelCode={levelCode}
         onStudentAdded={handleStudentAdded}
+      />
+
+      {/* Edit Student Modal */}
+      <EditStudentModal
+        isOpen={showEditStudentModal}
+        onClose={() => {
+          setShowEditStudentModal(false);
+          setEditingStudent(null);
+        }}
+        student={editingStudent}
+        onStudentUpdated={handleStudentAdded}
       />
     </div>
   );

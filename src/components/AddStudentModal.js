@@ -10,7 +10,10 @@ export default function AddStudentModal({ isOpen, onClose, levelCode, onStudentA
     name: '',
     username: '',
     email: '',
-    code: ''
+    code: '',
+    phone_number: '',
+    parent1_number: '',
+    parent2_number: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -127,6 +130,9 @@ export default function AddStudentModal({ isOpen, onClose, levelCode, onStudentA
           username: newStudent.username,
           email: newStudent.email,
           code: newStudent.code,
+          phone_number: newStudent.phone_number || null,
+          parent1_number: newStudent.parent1_number || null,
+          parent2_number: newStudent.parent2_number || null,
           role: 'student',
           created_at: new Date().toISOString()
         }])
@@ -147,7 +153,7 @@ export default function AddStudentModal({ isOpen, onClose, levelCode, onStudentA
       if (enrollError) throw enrollError;
 
       setSuccess(`Successfully created and added ${newStudent.name} to the class!`);
-      setNewStudent({ name: '', username: '', email: '', code: '' });
+      setNewStudent({ name: '', username: '', email: '', code: '', phone_number: '', parent1_number: '', parent2_number: '' });
       onStudentAdded();
       
       // Close modal after a short delay
@@ -372,6 +378,36 @@ export default function AddStudentModal({ isOpen, onClose, levelCode, onStudentA
                     onChange={(e) => setNewStudent({ ...newStudent, code: e.target.value })}
                     className="input"
                     placeholder="Enter student code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Personal Phone Number</label>
+                  <input
+                    type="tel"
+                    value={newStudent.phone_number}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone_number: e.target.value })}
+                    className="input"
+                    placeholder="Enter student's personal phone number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Parent 1 Phone Number</label>
+                  <input
+                    type="tel"
+                    value={newStudent.parent1_number}
+                    onChange={(e) => setNewStudent({ ...newStudent, parent1_number: e.target.value })}
+                    className="input"
+                    placeholder="Enter parent 1 phone number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Parent 2 Phone Number</label>
+                  <input
+                    type="tel"
+                    value={newStudent.parent2_number}
+                    onChange={(e) => setNewStudent({ ...newStudent, parent2_number: e.target.value })}
+                    className="input"
+                    placeholder="Enter parent 2 phone number"
                   />
                 </div>
               </div>
